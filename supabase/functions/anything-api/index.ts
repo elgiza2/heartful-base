@@ -921,13 +921,20 @@ async function handleTools(
       if (rows.length) {
         await admin.from("pipedream_accounts").upsert(rows, { onConflict: "user_id,app_slug" });
       }
-      if (!rows.length) {
+      // Merge in accounts linked through the connect flow (stored locally).
+      {
         const { data } = await admin
           .from("pipedream_accounts")
           .select("app_slug, account_id, account_name, healthy")
           .eq("user_id", userId);
-        rows = (data as any[]) ?? [];
+        for (const r of ((data as any[]) ?? [])) {
+          const slug = String(r.app_slug ?? "");
+          if (!slug || seen.has(slug)) continue;
+          seen.add(slug);
+          rows.push(r);
+        }
       }
+
 
 
 
