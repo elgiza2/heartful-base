@@ -160,7 +160,16 @@ export default function IntegrationsSheet({ open, onOpenChange }: Props) {
                         busy={busy === detail.app}
                         onBack={() => setDetail(null)}
                         onToggle={() => void toggle(detail)}
-                      />
+                      >
+                        {connected[detail.app] && (
+                          <AppActionsPanel
+                            slug={detail.pipedreamSlug || detail.app}
+                            appName={detail.name}
+                            onUse={() => onOpenChange(false)}
+                          />
+                        )}
+                      </IntegrationDetail>
+
                     </motion.div>
                   ) : (
                     <motion.div
