@@ -2507,6 +2507,33 @@ export type Database = {
         }
         Relationships: []
       }
+      clerk_links: {
+        Row: {
+          clerk_user_id: string
+          created_at: string
+          email: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          clerk_user_id: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          clerk_user_id?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       cloud_browser_settings: {
         Row: {
           allow_downloads: boolean
@@ -6459,17 +6486,67 @@ export type Database = {
           },
         ]
       }
+      mcp_call_log: {
+        Row: {
+          connection_id: string | null
+          created_at: string
+          duration_ms: number | null
+          error: string | null
+          id: string
+          server_name: string | null
+          status: string
+          tool_name: string
+          user_id: string
+        }
+        Insert: {
+          connection_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          server_name?: string | null
+          status?: string
+          tool_name: string
+          user_id: string
+        }
+        Update: {
+          connection_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          server_name?: string | null
+          status?: string
+          tool_name?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_call_log_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_connections: {
         Row: {
           auth_headers: Json
+          auth_mode: string
+          capabilities: Json
           created_at: string
           enabled: boolean
           id: string
           last_error: string | null
+          last_probed_at: string | null
           name: string
+          oauth: Json
+          protocol_version: string
           state: string
           tool_names: string[]
           tool_schemas: Json
+          tools: Json
           transport: string
           updated_at: string
           url: string
@@ -6477,14 +6554,20 @@ export type Database = {
         }
         Insert: {
           auth_headers?: Json
+          auth_mode?: string
+          capabilities?: Json
           created_at?: string
           enabled?: boolean
           id?: string
           last_error?: string | null
+          last_probed_at?: string | null
           name: string
+          oauth?: Json
+          protocol_version?: string
           state?: string
           tool_names?: string[]
           tool_schemas?: Json
+          tools?: Json
           transport?: string
           updated_at?: string
           url: string
@@ -6492,20 +6575,99 @@ export type Database = {
         }
         Update: {
           auth_headers?: Json
+          auth_mode?: string
+          capabilities?: Json
           created_at?: string
           enabled?: boolean
           id?: string
           last_error?: string | null
+          last_probed_at?: string | null
           name?: string
+          oauth?: Json
+          protocol_version?: string
           state?: string
           tool_names?: string[]
           tool_schemas?: Json
+          tools?: Json
           transport?: string
           updated_at?: string
           url?: string
           user_id?: string
         }
         Relationships: []
+      }
+      mcp_oauth_states: {
+        Row: {
+          code_verifier: string
+          connection_id: string
+          created_at: string
+          metadata: Json
+          state: string
+          user_id: string
+        }
+        Insert: {
+          code_verifier: string
+          connection_id: string
+          created_at?: string
+          metadata?: Json
+          state: string
+          user_id: string
+        }
+        Update: {
+          code_verifier?: string
+          connection_id?: string
+          created_at?: string
+          metadata?: Json
+          state?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_oauth_states_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_tool_approvals: {
+        Row: {
+          connection_id: string
+          created_at: string
+          id: string
+          scope: string
+          tool_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string
+          id?: string
+          scope?: string
+          tool_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string
+          id?: string
+          scope?: string
+          tool_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_tool_approvals_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_connections"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       media_assets: {
         Row: {
