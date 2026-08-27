@@ -14,11 +14,12 @@ import IntegrationRow from "./integrations/IntegrationRow";
 import IntegrationDetail from "./integrations/IntegrationDetail";
 import EmptyConnectors from "./integrations/EmptyConnectors";
 import CustomApiKeys from "./integrations/CustomApiKeys";
-import ClerkIntegrations from "./integrations/ClerkIntegrations";
-import { clerkEnabled } from "@/lib/clerk/config";
 import CustomMcpList from "./integrations/CustomMcpList";
 import AgentTools from "./integrations/AgentTools";
 import AppActionsPanel from "./integrations/AppActionsPanel";
+import ApiAppsTab from "./integrations/ApiAppsTab";
+import ApiAppDetail from "./integrations/ApiAppDetail";
+import type { ApiApp } from "@/lib/apiApps/types";
 
 const DraggablePlusSheet = lazy(() =>
   import("@/pages/chat/components/DraggablePlusSheet").then((m) => ({
@@ -50,7 +51,9 @@ const SLIDE = { duration: 0.22, ease: [0.32, 0.72, 0, 1] as const };
 export default function IntegrationsSheet({ open, onOpenChange }: Props) {
   const [connected, setConnected] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<Tab>("apps");
+  const [tab, setTab] = useState<Tab>("tools");
+  const [apiDetail, setApiDetail] = useState<ApiApp | null>(null);
+  const [apiReload, setApiReload] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [detail, setDetail] = useState<Integration | null>(null);
   const [size, setSize] = useState({ height: 600, collapsedY: 200 });
@@ -68,6 +71,7 @@ export default function IntegrationsSheet({ open, onOpenChange }: Props) {
   useEffect(() => {
     if (!open) {
       setDetail(null);
+      setApiDetail(null);
       setQuery("");
       return;
     }
@@ -134,10 +138,10 @@ export default function IntegrationsSheet({ open, onOpenChange }: Props) {
           <Suspense fallback={null}>
             <DraggablePlusSheet
               height={size.height}
-              collapsedY={detail ? 0 : size.collapsedY}
+              collapsedY={detail || apiDetail ? 0 : size.collapsedY}
               bottomOffset={0}
               initialExpanded={false}
-              view={detail ? `detail-${detail.id}` : tab}
+              view={detail ? `detail-${detail.id}` : apiDetail ? `api-${apiDetail.id}` : tab}
               sheetKind="integrations"
               onClose={() => onOpenChange(false)}
             >
@@ -224,8 +228,12 @@ export default function IntegrationsSheet({ open, onOpenChange }: Props) {
                       </div>
 
                       <div className="mt-2 flex-1">
-                        {tab === "accounts" ? (
-                          <ClerkIntegrations />
+                        {tab === "apis" ? (
+                          <ApiAppsTab
+                            query={query}
+                            reloadKey={apiReload}
+                            onOpen={(app) => setApiDetail(app)}
+                          />
                         ) : tab === "custom" ? (
                           <div className="pb-2">
                             <p className="px-2 pb-1 pt-2 text-[12px] text-foreground/40">API keys</p>
