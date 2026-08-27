@@ -975,7 +975,7 @@ async function handleTools(
       const data = await toolsFetch(cfg, "/actions/configure", {
         method: "POST",
         body: {
-          external_user_id: userId,
+          external_user_id: externalUserId,
           id: tool,
           prop_name: body?.prop_name,
           configured_props: configured,
@@ -1011,7 +1011,7 @@ async function handleTools(
       const data = await toolsFetch(cfg, "/actions/run", {
         method: "POST",
         body: {
-          external_user_id: userId,
+          external_user_id: externalUserId,
           id: tool,
           configured_props: configured,
         },
