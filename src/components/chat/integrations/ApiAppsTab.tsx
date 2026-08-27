@@ -45,15 +45,16 @@ export default function ApiAppsTab({
     };
   }, [reloadKey]);
 
-  // Load the directory index once, lazily, the first time the user searches.
+  // Load the directory index as soon as the tab opens so the extra services
+  // are browsable, not only findable by search.
   useEffect(() => {
-    if (query.trim().length < 2 || dir.length) return;
     let alive = true;
     void fetchDirectory().then((d) => alive && setDir(d));
     return () => {
       alive = false;
     };
-  }, [query, dir.length]);
+  }, []);
+
 
   const connectedIds = useMemo(() => new Set(rows.map((r) => r.app_id)), [rows]);
 
