@@ -86,11 +86,11 @@ const UsagePage = () => {
             </button>
 
             <div className="usg-line">
-              <Sparkles className="usg-licon" />
               <span className="usg-llabel">Credits</span>
               <HelpCircle className="usg-lhelp" />
               <span className="usg-lvalue">{credits ?? 0}</span>
             </div>
+
             <div className="usg-line usg-line-sub">
               <span className="usg-llabel usg-muted">Free credits</span>
               <span className="usg-lvalue usg-muted">{credits ?? 0}</span>
