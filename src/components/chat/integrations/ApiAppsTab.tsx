@@ -1,11 +1,18 @@
 /** @doc "APIs" tab — ready-made apps that only need the user's own API key.
- *  Flat rows (logo + name + short line), connected ones first.
+ *  Curated apps first, plus a live search across the full public API directory
+ *  (thousands of services) so anything with an API key can be added.
  */
 import { useEffect, useMemo, useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { API_APPS } from "@/lib/apiApps/catalog";
 import type { ApiApp } from "@/lib/apiApps/types";
+import {
+  fetchDirectory,
+  loadDirectoryApp,
+  searchDirectory,
+  type DirectoryEntry,
+} from "@/lib/apiApps/directory";
 import { listApiApps, type ApiAppRow } from "@/lib/apiApps/client";
 import ApiAppLogo from "./ApiAppLogo";
 
@@ -20,6 +27,8 @@ export default function ApiAppsTab({
 }) {
   const [rows, setRows] = useState<ApiAppRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dir, setDir] = useState<DirectoryEntry[]>([]);
+  const [opening, setOpening] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -36,24 +45,72 @@ export default function ApiAppsTab({
     };
   }, [reloadKey]);
 
+  // Load the directory index once, lazily, the first time the user searches.
+  useEffect(() => {
+    if (query.trim().length < 2 || dir.length) return;
+    let alive = true;
+    void fetchDirectory().then((d) => alive && setDir(d));
+    return () => {
+      alive = false;
+    };
+  }, [query, dir.length]);
+
   const connectedIds = useMemo(() => new Set(rows.map((r) => r.app_id)), [rows]);
+
+  /** Apps the user connected from the directory, rebuilt from their saved spec. */
+  const savedDirApps = useMemo<ApiApp[]>(
+    () =>
+      rows
+        .filter((r) => r.app_id.startsWith("dir:") && r.spec?.baseUrl)
+        .map((r) => ({
+          id: r.app_id,
+          name: r.display_name || r.app_id.replace("dir:", ""),
+          category: "data" as const,
+          description: "Connected with your key",
+          docsUrl: r.spec.docsUrl ?? "https://apis.guru",
+          keyUrl: r.spec.docsUrl ?? "https://apis.guru",
+          baseUrl: r.spec.baseUrl,
+          auth: r.spec.auth,
+          logo: r.logo_url || "",
+          tools: r.spec.tools ?? [],
+        })),
+    [rows],
+  );
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
     const base = q
-      ? API_APPS.filter(
+      ? [...savedDirApps, ...API_APPS].filter(
           (a) =>
             a.name.toLowerCase().includes(q) ||
             a.description.toLowerCase().includes(q) ||
             a.category.includes(q),
         )
-      : API_APPS;
+      : [...savedDirApps, ...API_APPS];
     return [...base].sort((a, b) => {
       const ac = connectedIds.has(a.id) ? 0 : 1;
       const bc = connectedIds.has(b.id) ? 0 : 1;
       return ac - bc || a.name.localeCompare(b.name);
     });
-  }, [query, connectedIds]);
+  }, [query, connectedIds, savedDirApps]);
+
+  const known = useMemo(() => new Set(list.map((a) => a.id)), [list]);
+  const dirResults = useMemo(
+    () => searchDirectory(dir, query).filter((e) => !known.has(e.id)),
+    [dir, query, known],
+  );
+
+  const openDirectoryApp = async (entry: DirectoryEntry) => {
+    setOpening(entry.id);
+    try {
+      onOpen(await loadDirectoryApp(entry));
+    } catch (e: any) {
+      toast.error(e?.message || "Could not open this service");
+    } finally {
+      setOpening(null);
+    }
+  };
+
 
   if (loading) {
     return (
