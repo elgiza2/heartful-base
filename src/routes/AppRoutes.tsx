@@ -45,6 +45,7 @@ import {
   NotificationsInboxPage,
   UsagePage,
   McpSettingsPage,
+  McpCallbackPage,
   AIPersonalizationPage,
   KnowledgePage,
   SettingsSupportPage,
