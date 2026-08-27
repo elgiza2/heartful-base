@@ -719,11 +719,260 @@ async function handleVideo(
 
 
 
+// ===================== connected-app agent tools =====================
+// Uses the connected-apps credentials already stored as function secrets, so
+// the browser only ever sends its own session token.
+
+const TOOLS_API = "https://api.pipedream.com/v1";
+
+function toolsConfig() {
+  const pick = (...names: string[]) => {
+    for (const n of names) {
+      const v = Deno.env.get(n);
+      if (v) return v;
+    }
+    return undefined;
+  };
+  const clientId = pick("PIPEDREAM_CLIENT_ID", "PIPEDREAM_OAUTH_CLIENT_ID");
+  const clientSecret = pick("PIPEDREAM_CLIENT_SECRET", "PIPEDREAM_OAUTH_CLIENT_SECRET");
+  const projectId = pick("PIPEDREAM_PROJECT_ID", "PIPEDREAM_PROJECT");
+  if (!clientId || !clientSecret || !projectId) return null;
+  return {
+    clientId,
+    clientSecret,
+    projectId,
+    environment: pick("PIPEDREAM_ENVIRONMENT", "PIPEDREAM_ENV") ?? "production",
+  };
+}
+
+type ToolsCfg = NonNullable<ReturnType<typeof toolsConfig>>;
+
+let toolsToken: { value: string; expiresAt: number } | null = null;
+
+async function toolsAccessToken(cfg: ToolsCfg): Promise<string> {
+  if (toolsToken && toolsToken.expiresAt > Date.now() + 30_000) return toolsToken.value;
+  const res = await fetch(`${TOOLS_API}/oauth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      grant_type: "client_credentials",
+      client_id: cfg.clientId,
+      client_secret: cfg.clientSecret,
+    }),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.access_token) throw new Error(`app tools auth failed [${res.status}]`);
+  toolsToken = {
+    value: String(data.access_token),
+    expiresAt: Date.now() + Math.max(60_000, Number(data.expires_in ?? 3600) * 1000),
+  };
+  return toolsToken.value;
+}
+
+async function toolsFetch(
+  cfg: ToolsCfg,
+  path: string,
+  init: { method?: string; body?: unknown; query?: Record<string, string | undefined> } = {},
+) {
+  const token = await toolsAccessToken(cfg);
+  const url = new URL(`${TOOLS_API}/connect/${cfg.projectId}${path}`);
+  for (const [k, v] of Object.entries(init.query ?? {})) if (v) url.searchParams.set(k, v);
+  const res = await fetch(url.toString(), {
+    method: init.method ?? "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "X-PD-Environment": cfg.environment,
+    },
+    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+  });
+  const text = await res.text();
+  let data: any = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = { raw: text };
+  }
+  if (!res.ok) {
+    const detail = typeof data?.error === "string" ? data.error : text.slice(0, 300);
+    throw new Error(`app request failed [${res.status}]: ${detail}`);
+  }
+  return data;
+}
+
+const toolsAppSlug = (a: any) =>
+  a?.app?.name_slug ?? a?.app?.slug ?? a?.app_slug ?? a?.appSlug ?? null;
+
+async function handleTools(
+  req: Request,
+  admin: ReturnType<typeof createClient>,
+  body: any,
+): Promise<Response> {
+  const action = String(body?.action ?? "").trim();
+  if (!action) return json({ ok: false, error: "Missing action" }, 400);
+
+  const token = String(
+    body?.token ?? (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, ""),
+  );
+  const { data: userData } = await admin.auth.getUser(token);
+  const userId = userData?.user?.id;
+  if (!userId) return json({ ok: false, error: "Sign in first" }, 401);
+
+  const cfg = toolsConfig();
+  if (!cfg) {
+    if (action === "list") return json({ ok: true, configured: false, apps: [] });
+    return json({ ok: false, error: "App tools are not configured yet" }, 400);
+  }
+
+  try {
+    if (action === "list") {
+      let rows: any[] = [];
+      try {
+        const data = await toolsFetch(cfg, "/accounts", {
+          query: { external_user_id: userId, limit: "100" },
+        });
+        const accounts: any[] = Array.isArray(data?.data) ? data.data : [];
+        rows = accounts
+          .map((a) => {
+            const slug = toolsAppSlug(a);
+            if (!slug || !a?.id) return null;
+            return {
+              user_id: userId,
+              app_slug: String(slug),
+              account_id: String(a.id),
+              account_name: String(a.name ?? a.external_id ?? slug),
+              healthy: a.healthy !== false,
+              metadata: { app_name: a?.app?.name ?? null },
+              updated_at: new Date().toISOString(),
+            };
+          })
+          .filter(Boolean) as any[];
+        if (rows.length) {
+          await admin.from("pipedream_accounts").upsert(rows, { onConflict: "user_id,app_slug" });
+        }
+      } catch (_e) {
+        const { data } = await admin
+          .from("pipedream_accounts")
+          .select("app_slug, account_id, account_name, healthy")
+          .eq("user_id", userId);
+        rows = (data as any[]) ?? [];
+      }
+
+      const { data: prefs } = await admin
+        .from("pipedream_tool_settings")
+        .select("app_slug, enabled")
+        .eq("user_id", userId);
+      const off = new Set(
+        ((prefs as any[]) ?? []).filter((r) => r.enabled === false).map((r) => String(r.app_slug)),
+      );
+
+      return json({
+        ok: true,
+        configured: true,
+        apps: rows.map((a) => ({
+          app: String(a.app_slug),
+          account_id: String(a.account_id ?? ""),
+          account_name: a.account_name ?? null,
+          healthy: a.healthy !== false,
+          enabled: !off.has(String(a.app_slug)),
+        })),
+      });
+    }
+
+    if (action === "actions") {
+      const app = String(body?.app ?? "").trim();
+      if (!app) return json({ ok: false, error: "Missing app" }, 400);
+      const data = await toolsFetch(cfg, "/actions", { query: { app, limit: "100" } });
+      const list: any[] = Array.isArray(data?.data) ? data.data : [];
+      return json({
+        ok: true,
+        app,
+        tools: list.map((a) => ({
+          key: String(a?.key ?? a?.id ?? ""),
+          app,
+          name: String(a?.name ?? a?.key ?? "Action"),
+          description: String(a?.description ?? "").slice(0, 400),
+          version: a?.version ? String(a.version) : undefined,
+        })),
+      });
+    }
+
+    if (action === "props") {
+      const tool = String(body?.tool ?? "");
+      if (!tool) return json({ ok: false, error: "Missing tool" }, 400);
+      const data = await toolsFetch(cfg, "/actions/configure", {
+        method: "POST",
+        body: {
+          external_user_id: userId,
+          id: tool,
+          prop_name: body?.prop_name,
+          configured_props: body?.configured_props ?? {},
+          query: body?.query,
+        },
+      });
+      return json({ ok: true, result: data });
+    }
+
+    if (action === "run") {
+      const tool = String(body?.tool ?? "");
+      if (!tool) return json({ ok: false, error: "Missing tool" }, 400);
+      const app = String(body?.app ?? "").trim();
+      if (app) {
+        const { data: setting } = await admin
+          .from("pipedream_tool_settings")
+          .select("enabled")
+          .eq("user_id", userId)
+          .eq("app_slug", app)
+          .maybeSingle();
+        if (setting && (setting as any).enabled === false) {
+          return json({ ok: false, error: "This app is turned off for the assistant" }, 403);
+        }
+      }
+      const data = await toolsFetch(cfg, "/actions/run", {
+        method: "POST",
+        body: {
+          external_user_id: userId,
+          id: tool,
+          configured_props: body?.configured_props ?? {},
+        },
+      });
+      return json({ ok: true, result: data?.ret ?? data, exports: data?.exports ?? null });
+    }
+
+    if (action === "set_enabled") {
+      const app = String(body?.app ?? "").trim();
+      if (!app) return json({ ok: false, error: "Missing app" }, 400);
+      const enabled = body?.enabled !== false;
+      const { error } = await admin.from("pipedream_tool_settings").upsert(
+        { user_id: userId, app_slug: app, enabled, updated_at: new Date().toISOString() },
+        { onConflict: "user_id,app_slug" },
+      );
+      if (error) return json({ ok: false, error: error.message }, 500);
+      return json({ ok: true, app, enabled });
+    }
+
+    return json({ ok: false, error: "Unknown action" }, 400);
+  } catch (e) {
+    return json({ ok: false, error: e instanceof Error ? e.message : "tools_failed" }, 500);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   try {
     const body = await req.json().catch(() => ({}));
+
+    // connected-app tools (list / actions / props / run / set_enabled)
+    if (body?.kind === "tools" || body?.tools === true) {
+      return await handleTools(req, createClient(SUPABASE_URL, SERVICE_KEY), body);
+    }
+
+    // video generation
+    if (body?.kind === "video" || body?.media === "video") {
+      return await handleVideo(req, createClient(SUPABASE_URL, SERVICE_KEY), body);
+    }
+
     const prompt = String(body?.prompt ?? "").trim();
     if (!prompt) return json({ error: true, message: "prompt is required" }, 400);
 
