@@ -159,6 +159,19 @@ const AnimatedInput = ({
     return () => window.removeEventListener("megsy:open-integrations", open);
   }, []);
 
+  /** An app tool was picked from the connectors sheet — prefill the composer. */
+  useEffect(() => {
+    const insert = (event: Event) => {
+      const text = (event as CustomEvent<{ text?: string }>).detail?.text;
+      if (!text) return;
+      const current = valueRef.current;
+      onChange(current && !current.endsWith(" ") ? `${current} ${text}` : `${current}${text}`);
+      window.setTimeout(() => textareaRef.current?.focus(), 60);
+    };
+    window.addEventListener("megsy:composer-insert", insert);
+    return () => window.removeEventListener("megsy:composer-insert", insert);
+  }, [onChange]);
+
   const isActive = focused || !!value;
 
 

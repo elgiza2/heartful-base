@@ -71,7 +71,7 @@ export async function fetchTurnContext(): Promise<TurnContext> {
 
   if (cache && cache.userId === userId && Date.now() - cache.at < CACHE_TTL) return cache.value;
 
-  const [knowledgeRes, mcpRes, appsRes, integrationsRes, browserRes] = await Promise.all([
+  const [knowledgeRes, mcpRes, appsRes, integrationsRes, browserRes, toolAppsRes, toolPrefsRes] = await Promise.all([
     supabase
       .from("user_knowledge")
       .select("name, use_when, content, enabled")
@@ -100,6 +100,16 @@ export async function fetchTurnContext(): Promise<TurnContext> {
       .select("keep_signed_in, allow_downloads")
       .eq("user_id", userId)
       .maybeSingle(),
+    supabase
+      .from("pipedream_accounts")
+      .select("app_slug, account_name, healthy")
+      .eq("user_id", userId)
+      .limit(60),
+    supabase
+      .from("pipedream_tool_settings")
+      .select("app_slug, enabled")
+      .eq("user_id", userId)
+      .limit(60),
   ]);
 
   let budget = KNOWLEDGE_CHAR_BUDGET;
@@ -143,6 +153,17 @@ export async function fetchTurnContext(): Promise<TurnContext> {
   const connectedApps: ConnectedAppInfo[] = ((appsRes.data as any[]) || [])
     .filter((r) => (r.status || "active") !== "revoked")
     .map((r) => ({ slug: String(r.app_slug), kind: "app" }));
+  const disabledApps = new Set(
+    (((toolPrefsRes as any)?.data as any[]) || [])
+      .filter((r) => r?.enabled === false)
+      .map((r) => String(r.app_slug)),
+  );
+  for (const row of (((toolAppsRes as any)?.data as any[]) || [])) {
+    const slug = String(row?.app_slug || "");
+    if (!slug || disabledApps.has(slug)) continue;
+    if (connectedApps.some((a) => a.slug === slug)) continue;
+    connectedApps.push({ slug, kind: "app-tools" });
+  }
   const integ = (integrationsRes as any)?.data;
   if (integ?.email_enabled && integ?.email_address) connectedApps.push({ slug: "email", kind: "notification" });
   if (integ?.telegram_chat_id) connectedApps.push({ slug: "telegram", kind: "notification" });
@@ -199,11 +220,20 @@ export function buildTurnContextBrief(ctx: TurnContext): string {
   }
 
   if (ctx.connectedApps.length) {
+    const toolApps = ctx.connectedApps.filter((a) => a.kind === "app-tools").map((a) => a.slug);
     parts.push(
       `[CONNECTED APPS — you can act on the user's behalf in: ${ctx.connectedApps
         .map((a) => a.slug)
         .join(", ")}.]`,
     );
+    if (toolApps.length) {
+      parts.push(
+        [
+          `[APP ACTIONS — these apps expose real actions you may run for the user: ${toolApps.join(", ")}.`,
+          "When a request maps to one of them, say which app and action you will use, gather the missing inputs in one short question, then proceed. Never claim you cannot access a connected app.]",
+        ].join(" "),
+      );
+    }
   }
 
   parts.push(

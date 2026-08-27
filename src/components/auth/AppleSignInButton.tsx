@@ -35,7 +35,10 @@ function AppleButtonInner({ className }: { className?: string }) {
   );
 }
 
+/** Apple sign-in stays hidden until real Apple credentials are configured. */
+const appleEnabled = String(import.meta.env.VITE_APPLE_SIGNIN_ENABLED ?? "") === "true";
+
 export default function AppleSignInButton({ className }: { className?: string }) {
-  if (!clerkEnabled) return null;
+  if (!appleEnabled || !clerkEnabled) return null;
   return <AppleButtonInner className={className} />;
 }
