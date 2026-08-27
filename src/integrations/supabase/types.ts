@@ -2507,6 +2507,33 @@ export type Database = {
         }
         Relationships: []
       }
+      cloud_browser_settings: {
+        Row: {
+          allow_downloads: boolean
+          created_at: string
+          keep_signed_in: boolean
+          last_session_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allow_downloads?: boolean
+          created_at?: string
+          keep_signed_in?: boolean
+          last_session_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allow_downloads?: boolean
+          created_at?: string
+          keep_signed_in?: boolean
+          last_session_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       composio_auth_configs: {
         Row: {
           app_slug: string
@@ -12376,6 +12403,48 @@ export type Database = {
           memory?: Json
           notification_settings?: Json
           page_settings?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_provider_keys: {
+        Row: {
+          created_at: string
+          id: string
+          is_enabled: boolean
+          key_hint: string
+          key_value: string
+          label: string | null
+          last_error: string | null
+          last_verified_at: string | null
+          provider: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          key_hint?: string
+          key_value: string
+          label?: string | null
+          last_error?: string | null
+          last_verified_at?: string | null
+          provider: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          key_hint?: string
+          key_value?: string
+          label?: string | null
+          last_error?: string | null
+          last_verified_at?: string | null
+          provider?: string
           updated_at?: string
           user_id?: string
         }

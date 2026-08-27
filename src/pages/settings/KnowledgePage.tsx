@@ -5,6 +5,7 @@ import { ChevronLeft, Lightbulb, Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { goBackOr } from "@/lib/navigation";
+import { notifyTurnContextChanged } from "@/lib/chat/turnContext";
 
 type KnowledgeRow = {
   id: string;
@@ -75,6 +76,7 @@ const KnowledgePage = () => {
       if (error) throw error;
       setSheetOpen(false);
       await load();
+      notifyTurnContextChanged();
     } catch {
       toast.error("Could not save knowledge");
     } finally {
@@ -90,7 +92,9 @@ const KnowledgePage = () => {
       .eq("id", row.id);
     if (error) {
       setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, enabled: row.enabled } : r)));
+      return;
     }
+    notifyTurnContextChanged();
   };
 
   return (

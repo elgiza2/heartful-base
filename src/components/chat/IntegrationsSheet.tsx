@@ -13,6 +13,8 @@ import {
 import IntegrationRow from "./integrations/IntegrationRow";
 import IntegrationDetail from "./integrations/IntegrationDetail";
 import EmptyConnectors from "./integrations/EmptyConnectors";
+import CustomApiKeys from "./integrations/CustomApiKeys";
+import CustomMcpList from "./integrations/CustomMcpList";
 
 const DraggablePlusSheet = lazy(() =>
   import("@/pages/chat/components/DraggablePlusSheet").then((m) => ({
@@ -211,11 +213,9 @@ export default function IntegrationsSheet({ open, onOpenChange }: Props) {
 
                       <div className="mt-2 flex-1">
                         {tab === "mcp" ? (
-                          <EmptyConnectors
-                            label="No custom MCP"
-                            actionLabel="Create via chat"
-                            onAction={() => onOpenChange(false)}
-                          />
+                          <CustomMcpList onNavigate={() => onOpenChange(false)} />
+                        ) : tab === "api" ? (
+                          <CustomApiKeys />
                         ) : list.length === 0 ? (
                           <EmptyConnectors label="No results" />
                         ) : (
