@@ -1,4 +1,4 @@
-/** @doc Browser helper for the connected-apps tool gateway (/api/pipedream).
+/** @doc Browser helper for the connected-apps tool gateway (backend function).
  *  The browser never holds provider credentials — only its own session token.
  */
 import { supabase } from "@/integrations/supabase/client";
