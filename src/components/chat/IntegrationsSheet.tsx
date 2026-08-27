@@ -31,13 +31,14 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-type Tab = "apps" | "accounts" | "custom";
+type Tab = "tools" | "apis" | "custom";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "apps", label: "Apps" },
-  ...(clerkEnabled ? [{ id: "accounts" as Tab, label: "Accounts" }] : []),
+  { id: "tools", label: "Tools" },
+  { id: "apis", label: "APIs" },
   { id: "custom", label: "Custom" },
 ];
+
 
 
 const SLIDE = { duration: 0.22, ease: [0.32, 0.72, 0, 1] as const };
