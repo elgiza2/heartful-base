@@ -168,7 +168,7 @@ const PlusMain = (p: PlusContentProps) => {
       whileTap={{ scale: item.toggle ? 1 : 0.98 }}
       transition={iosSpring}
       onClick={item.onClick}
-      className="plus-row w-full flex items-center gap-3.5 px-2.5 h-[56px] rounded-[14px] text-start border-0 bg-transparent"
+      className="plus-row w-full flex items-center gap-3.5 px-3.5 h-[54px] rounded-[18px] text-start border-0 bg-transparent"
     >
       <item.Icon
         className="shrink-0 w-[22px] h-[22px] transition-colors duration-200"
@@ -234,10 +234,20 @@ const PlusMain = (p: PlusContentProps) => {
         variants={{ hidden: {}, show: { transition: { staggerChildren: 0.022, delayChildren: 0.02 } } }}
       >
         <style>{`
-          .kimi-tile { background: hsl(0 0% 100% / 0.055); border: 0; }
-          .kimi-tile:active { background: hsl(0 0% 100% / 0.1); }
-          .plus-row:active { background: hsl(0 0% 100% / 0.06); }
+          .kimi-tile {
+            background: linear-gradient(180deg, hsl(0 0% 100% / 0.075), hsl(0 0% 100% / 0.035));
+            border: 1px solid hsl(0 0% 100% / 0.08);
+            box-shadow: 0 1px 0 0 hsl(0 0% 100% / 0.06) inset, 0 6px 18px -12px hsl(0 0% 0% / 0.6);
+            transition: background 180ms ease, border-color 180ms ease;
+          }
+          .kimi-tile:active {
+            background: linear-gradient(180deg, hsl(0 0% 100% / 0.13), hsl(0 0% 100% / 0.07));
+            border-color: hsl(0 0% 100% / 0.14);
+          }
+          .plus-row { transition: background 160ms ease; }
+          .plus-row:active { background: hsl(0 0% 100% / 0.07); }
         `}</style>
+
 
         <div className="pt-1" />
 
@@ -256,7 +266,7 @@ const PlusMain = (p: PlusContentProps) => {
               whileTap={{ scale: 0.96 }}
               transition={iosSpring}
               onClick={t.onClick}
-              className="kimi-tile flex flex-1 flex-col items-center justify-center gap-2 rounded-[20px]"
+              className="kimi-tile flex flex-1 flex-col items-center justify-center gap-2 rounded-[24px]"
               style={{ height: 82 }}
             >
               <t.Icon className="w-[22px] h-[22px]" strokeWidth={1.6} style={{ color: "hsl(var(--foreground) / 0.85)" }} />
@@ -283,13 +293,17 @@ const PlusMain = (p: PlusContentProps) => {
                 </div>
               )}
               <div
-                className="flex flex-col rounded-[16px] overflow-hidden"
-                style={{ background: "hsl(var(--foreground) / 0.045)" }}
+                className="flex flex-col rounded-[24px] overflow-hidden p-1"
+                style={{
+                  background: "hsl(0 0% 100% / 0.045)",
+                  border: "1px solid hsl(0 0% 100% / 0.07)",
+                  boxShadow: "0 8px 24px -16px hsl(0 0% 0% / 0.7)",
+                }}
               >
                 {section.items.map((it, ii) => (
                   <div key={it.id}>
                     {ii > 0 && (
-                      <div className="h-px ms-[52px]" style={{ background: "hsl(var(--foreground) / 0.07)" }} />
+                      <div className="h-px mx-3.5" style={{ background: "hsl(0 0% 100% / 0.06)" }} />
                     )}
                     <SheetRow item={it} />
                   </div>
