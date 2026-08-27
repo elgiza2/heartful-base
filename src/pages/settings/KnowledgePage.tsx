@@ -5,6 +5,7 @@ import { ChevronLeft, Lightbulb, Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { goBackOr } from "@/lib/navigation";
+import { notifyTurnContextChanged } from "@/lib/chat/turnContext";
 
 type KnowledgeRow = {
   id: string;

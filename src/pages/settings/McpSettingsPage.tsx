@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { SubShell, SubSection, SubCard } from "@/components/settings/SubShell";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { notifyTurnContextChanged } from "@/lib/chat/turnContext";
 
 interface McpRow {
   id: string;
