@@ -217,9 +217,7 @@ export default function IntegrationsSheet({ open, onOpenChange }: Props) {
                       </div>
 
                       <div className="mt-2 flex-1">
-                        {tab === "tools" ? (
-                          <AgentTools onClose={() => onOpenChange(false)} />
-                        ) : tab === "mcp" ? (
+                        {tab === "mcp" ? (
                           <CustomMcpList onNavigate={() => onOpenChange(false)} />
                         ) : tab === "accounts" ? (
                           <ClerkIntegrations />
@@ -229,20 +227,11 @@ export default function IntegrationsSheet({ open, onOpenChange }: Props) {
                           <EmptyConnectors label="No results" />
                         ) : (
                           <>
-                            {connectedList.length > 0 && (
-                              <div className="mb-3">
-                                <p className="px-2 pb-1 pt-2 text-[12px] text-foreground/40">Currently connected</p>
-                                {connectedList.map((item) => (
-                                  <IntegrationRow
-                                    key={item.id}
-                                    item={item}
-                                    connected
-                                    busy={busy === item.app}
-                                    onOpen={() => setDetail(item)}
-                                  />
-                                ))}
-                              </div>
-                            )}
+                            <div className="mb-3">
+                              <p className="px-2 pb-1 pt-2 text-[12px] text-foreground/40">Currently connected</p>
+                              <AgentTools query={query} onClose={() => onOpenChange(false)} />
+                            </div>
+
                             {restList.map((item) => (
                               <IntegrationRow
                                 key={item.id}
