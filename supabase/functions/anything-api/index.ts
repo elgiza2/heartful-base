@@ -984,10 +984,12 @@ async function handleTools(
         appHint,
         body?.configured_props ?? {},
       );
+      const extUser = await toolsExternalUser(admin, userId, externalUserId, appHint);
       const data = await toolsFetch(cfg, "/actions/configure", {
         method: "POST",
         body: {
-          external_user_id: externalUserId,
+          external_user_id: extUser,
+
           id: tool,
           prop_name: body?.prop_name,
           configured_props: configured,
