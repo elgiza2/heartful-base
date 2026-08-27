@@ -234,10 +234,20 @@ const PlusMain = (p: PlusContentProps) => {
         variants={{ hidden: {}, show: { transition: { staggerChildren: 0.022, delayChildren: 0.02 } } }}
       >
         <style>{`
-          .kimi-tile { background: hsl(0 0% 100% / 0.055); border: 0; }
-          .kimi-tile:active { background: hsl(0 0% 100% / 0.1); }
-          .plus-row:active { background: hsl(0 0% 100% / 0.06); }
+          .kimi-tile {
+            background: linear-gradient(180deg, hsl(0 0% 100% / 0.075), hsl(0 0% 100% / 0.035));
+            border: 1px solid hsl(0 0% 100% / 0.08);
+            box-shadow: 0 1px 0 0 hsl(0 0% 100% / 0.06) inset, 0 6px 18px -12px hsl(0 0% 0% / 0.6);
+            transition: background 180ms ease, border-color 180ms ease;
+          }
+          .kimi-tile:active {
+            background: linear-gradient(180deg, hsl(0 0% 100% / 0.13), hsl(0 0% 100% / 0.07));
+            border-color: hsl(0 0% 100% / 0.14);
+          }
+          .plus-row { transition: background 160ms ease; }
+          .plus-row:active { background: hsl(0 0% 100% / 0.07); }
         `}</style>
+
 
         <div className="pt-1" />
 
