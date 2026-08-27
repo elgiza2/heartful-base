@@ -57,10 +57,10 @@ export const SKILL_TOOLS: SkillToolOption[] = [
 
 export const SKILL_MODELS: { id: string; label: string }[] = [
   { id: "auto", label: "Auto (recommended)" },
-  { id: "google/gemini-2.5-flash-lite-preview-09-2025", label: "Gemini 2.5 Flash Lite" },
-  { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-  { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-  { id: "anthropic/claude-3.5-sonnet", label: "Claude 3.5 Sonnet" },
-  { id: "openai/gpt-5", label: "GPT-5" },
-  { id: "moonshotai/kimi-k2.5:nitro", label: "Kimi K2.5 Nitro" },
+  { id: "google/gemini-2.5-flash-lite-preview-09-2025", label: "Fast" },
+  { id: "google/gemini-2.5-flash", label: "Balanced" },
+  { id: "google/gemini-2.5-pro", label: "Advanced" },
+  { id: "anthropic/claude-3.5-sonnet", label: "Writing" },
+  { id: "openai/gpt-5", label: "Reasoning" },
+  { id: "moonshotai/kimi-k2.5:nitro", label: "Long context" },
 ];
