@@ -841,8 +841,26 @@ async function toolsWithAuth(
   return props;
 }
 
+/** The external-user namespace the app's account was linked under. */
+async function toolsExternalUser(
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  fallback: string,
+  app: string,
+): Promise<string> {
+  if (!app) return fallback;
+  const { data } = await admin
+    .from("pipedream_accounts")
+    .select("external_user_id")
+    .eq("user_id", userId)
+    .eq("app_slug", app)
+    .maybeSingle();
+  const ext = (data as any)?.external_user_id;
+  return ext ? String(ext) : fallback;
+}
 
 async function handleTools(
+
   req: Request,
   admin: ReturnType<typeof createClient>,
   body: any,
