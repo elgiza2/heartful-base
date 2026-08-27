@@ -869,37 +869,39 @@ async function handleTools(
   try {
     if (action === "list") {
       let rows: any[] = [];
-      try {
-        const accounts: any[] = [];
-        for (const ext of [externalUserId, userId]) {
+      const accounts: any[] = [];
+      for (const ext of [externalUserId, userId]) {
+        try {
           const data = await toolsFetch(cfg, "/accounts", {
             query: { external_user_id: ext, limit: "100" },
           });
-          if (Array.isArray(data?.data)) accounts.push(...data.data);
+          if (Array.isArray(data?.data)) {
+            for (const a of data.data) accounts.push({ ...a, _ext: ext });
+          }
+        } catch (_e) {
+          // ignore: this external-user namespace may not exist
         }
-        const seen = new Set<string>();
-        rows = accounts
-          .map((a) => {
-            const slug = toolsAppSlug(a);
-            if (!slug || !a?.id || seen.has(String(slug))) return null;
-            seen.add(String(slug));
-            return {
-              user_id: userId,
-              external_user_id: String(a.external_id ?? externalUserId),
-              app_slug: String(slug),
-              account_id: String(a.id),
-              account_name: String(a.name ?? a.external_id ?? slug),
-              healthy: a.healthy !== false,
-              metadata: { app_name: a?.app?.name ?? null },
-              updated_at: new Date().toISOString(),
-            };
-          })
-          .filter(Boolean) as any[];
-        if (rows.length) {
-          await admin.from("pipedream_accounts").upsert(rows, { onConflict: "user_id,app_slug" });
-        }
-      } catch (_e) {
-        rows = [];
+      }
+      const seen = new Set<string>();
+      rows = accounts
+        .map((a) => {
+          const slug = toolsAppSlug(a);
+          if (!slug || !a?.id || seen.has(String(slug))) return null;
+          seen.add(String(slug));
+          return {
+            user_id: userId,
+            external_user_id: String(a._ext ?? externalUserId),
+            app_slug: String(slug),
+            account_id: String(a.id),
+            account_name: String(a.name ?? a.external_id ?? slug),
+            healthy: a.healthy !== false,
+            metadata: { app_name: a?.app?.name ?? null },
+            updated_at: new Date().toISOString(),
+          };
+        })
+        .filter(Boolean) as any[];
+      if (rows.length) {
+        await admin.from("pipedream_accounts").upsert(rows, { onConflict: "user_id,app_slug" });
       }
       if (!rows.length) {
         const { data } = await admin
@@ -908,6 +910,7 @@ async function handleTools(
           .eq("user_id", userId);
         rows = (data as any[]) ?? [];
       }
+
 
 
 
