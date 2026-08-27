@@ -148,9 +148,45 @@ export default function ApiAppsTab({
           </button>
         );
       })}
-      {list.length === 0 && (
-        <p className="py-8 text-center text-[13px] text-foreground/40">No results</p>
+
+      {dirResults.length > 0 && (
+        <>
+          <p className="px-2 pb-1 pt-4 text-[12px] text-foreground/40">
+            More services ({dirResults.length})
+          </p>
+          {dirResults.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => void openDirectoryApp(entry)}
+              className="flex w-full items-center gap-3 px-2 py-2.5 text-left active:opacity-60"
+              style={{ border: 0, background: "transparent", minHeight: 58 }}
+            >
+              <ApiAppLogo
+                app={{ id: entry.id, name: entry.name, logo: entry.logo } as ApiApp}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[14.5px] font-medium text-foreground">
+                  {entry.name}
+                </span>
+                <span className="mt-0.5 block truncate text-[11.5px] leading-[1.5] text-foreground/40">
+                  {entry.description}
+                </span>
+              </span>
+              {opening === entry.id && (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-foreground/40" />
+              )}
+            </button>
+          ))}
+        </>
+      )}
+
+      {list.length === 0 && dirResults.length === 0 && (
+        <p className="py-8 text-center text-[13px] text-foreground/40">
+          {query.trim().length >= 2 && !dir.length ? "Searching…" : "No results"}
+        </p>
       )}
     </div>
   );
 }
+
