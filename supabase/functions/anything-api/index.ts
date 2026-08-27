@@ -803,6 +803,45 @@ async function toolsFetch(
 const toolsAppSlug = (a: any) =>
   a?.app?.name_slug ?? a?.app?.slug ?? a?.app_slug ?? a?.appSlug ?? null;
 
+/** Pipedream actions need the connected account passed as their `app` prop. */
+async function toolsWithAuth(
+  cfg: ToolsCfg,
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  toolId: string,
+  appHint: string,
+  configured: Record<string, any>,
+): Promise<Record<string, any>> {
+  const props = { ...(configured ?? {}) };
+  let authProps: { name: string; app: string }[] = [];
+  try {
+    const meta = await toolsFetch(cfg, `/components/${encodeURIComponent(toolId)}`);
+    const list: any[] = meta?.data?.configurable_props ?? meta?.configurable_props ?? [];
+    authProps = list
+      .filter((p) => p?.type === "app" && p?.name)
+      .map((p) => ({ name: String(p.name), app: String(p.app ?? appHint) }));
+  } catch (_e) {
+    // fall back to slug-derived guess below
+  }
+  if (!authProps.length && appHint) {
+    const camel = appHint.replace(/_([a-z])/g, (_m, c) => c.toUpperCase());
+    authProps = [{ name: camel, app: appHint }];
+  }
+  for (const p of authProps) {
+    if (props[p.name]) continue;
+    const { data: acc } = await admin
+      .from("pipedream_accounts")
+      .select("account_id")
+      .eq("user_id", userId)
+      .eq("app_slug", p.app || appHint)
+      .maybeSingle();
+    const accountId = (acc as any)?.account_id;
+    if (accountId) props[p.name] = { authProvisionId: String(accountId) };
+  }
+  return props;
+}
+
+
 async function handleTools(
   req: Request,
   admin: ReturnType<typeof createClient>,
