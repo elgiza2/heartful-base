@@ -96,10 +96,12 @@ export default function ApiAppsTab({
   }, [query, connectedIds, savedDirApps]);
 
   const known = useMemo(() => new Set(list.map((a) => a.id)), [list]);
-  const dirResults = useMemo(
-    () => searchDirectory(dir, query).filter((e) => !known.has(e.id)),
-    [dir, query, known],
-  );
+  const dirResults = useMemo(() => {
+    const q = query.trim();
+    const found = q.length >= 2 ? searchDirectory(dir, q) : dir;
+    return found.filter((e) => !known.has(e.id)).slice(0, q ? 60 : 40);
+  }, [dir, query, known]);
+
 
   const openDirectoryApp = async (entry: DirectoryEntry) => {
     setOpening(entry.id);
