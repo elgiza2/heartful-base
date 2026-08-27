@@ -90,7 +90,7 @@ export default function IntegrationsSheet({ open, onOpenChange }: Props) {
     );
   }, [query, tab]);
 
-  const connectedList = list.filter((i) => connected[i.app]);
+  
   const restList = list.filter((i) => !connected[i.app]);
 
   const toggle = async (item: Integration) => {
