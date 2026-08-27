@@ -117,16 +117,39 @@ export async function startIntegrationConnection(integration: Integration) {
   }
 
   if (integration.type === "pipedream" && integration.pipedreamSlug) {
-    const { data, error } = await supabase.functions.invoke("pipedream-connect", {
-      body: { action: "create_token", redirect_origin: window.location.origin },
-    });
-    if (data?.configured === false) {
-      throw new Error("Pipedream is not configured on the backend yet");
+    // Prefer the tool runtime's own link session so connected apps can run actions.
+    let linkUrl: string | null = null;
+    const { data: session } = await supabase.auth.getSession();
+    const token = session.session?.access_token;
+    if (token) {
+      const { data: viaTools } = await supabase.functions.invoke<{
+        ok?: boolean;
+        connect_link_url?: string;
+      }>("anything-api", {
+        body: {
+          kind: "tools",
+          action: "connect",
+          token,
+          redirect_origin: window.location.origin,
+        },
+      });
+      if (viaTools?.connect_link_url) linkUrl = viaTools.connect_link_url;
     }
-    if (error || data?.error || !data?.connect_link_url) {
-      throw new Error(data?.error || error?.message || "Pipedream backend is not configured");
+
+    if (!linkUrl) {
+      const { data, error } = await supabase.functions.invoke("pipedream-connect", {
+        body: { action: "create_token", redirect_origin: window.location.origin },
+      });
+      if (data?.configured === false) {
+        throw new Error("App connections are not configured on the backend yet");
+      }
+      if (error || data?.error || !data?.connect_link_url) {
+        throw new Error(data?.error || error?.message || "App connections are not configured");
+      }
+      linkUrl = data.connect_link_url as string;
     }
-    const url = new URL(data.connect_link_url);
+
+    const url = new URL(linkUrl);
     url.searchParams.set("app", integration.pipedreamSlug);
     const popup = window.open(
       url.toString(),
@@ -136,6 +159,7 @@ export async function startIntegrationConnection(integration: Integration) {
     if (!popup) throw new Error("Popup blocked. Allow popups and try again.");
     return { mode: "pipedream" as const, popup };
   }
+
 
   if (integration.app === "email") {
     const user = await requireSignedInUser();
