@@ -116,20 +116,32 @@ export async function fetchTurnContext(): Promise<TurnContext> {
       .limit(60),
     supabase
       .from("user_api_apps")
-      .select("app_id, enabled")
+      .select("app_id, enabled, display_name, spec")
       .eq("user_id", userId)
       .eq("enabled", true)
       .limit(60),
   ]);
 
   const apiApps: ApiAppInfo[] = (((apiAppsRes as any)?.data as any[]) || [])
-    .map((r) => API_APPS.find((a) => a.id === String(r.app_id)))
+    .map((r) => {
+      const curated = API_APPS.find((a) => a.id === String(r.app_id));
+      if (curated) return { id: curated.id, name: curated.name, tools: curated.tools };
+      if (r.spec?.tools?.length) {
+        return {
+          id: String(r.app_id),
+          name: String(r.display_name || r.app_id),
+          tools: r.spec.tools,
+        };
+      }
+      return null;
+    })
     .filter(Boolean)
     .map((a: any) => ({
       id: a.id,
       name: a.name,
-      tools: a.tools.map((t: any) => ({ name: t.name, description: t.description })),
+      tools: (a.tools as any[]).map((t) => ({ name: t.name, description: t.description })),
     }));
+
 
   let budget = KNOWLEDGE_CHAR_BUDGET;
   const knowledge: KnowledgeEntry[] = [];

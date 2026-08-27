@@ -43,7 +43,17 @@ export default function ApiAppDetail({
   const save = async () => {
     setSaving(true);
     try {
-      await saveApiAppKey(app.id, value);
+      await saveApiAppKey(
+        app.id,
+        value,
+        app.id.startsWith("dir:")
+          ? {
+              name: app.name,
+              logo: app.logo,
+              spec: { baseUrl: app.baseUrl, auth: app.auth, tools: app.tools },
+            }
+          : undefined,
+      );
       setValue("");
       await load();
       onChanged?.();

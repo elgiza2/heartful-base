@@ -11955,30 +11955,42 @@ export type Database = {
         Row: {
           app_id: string
           created_at: string
+          display_name: string | null
           enabled: boolean
           id: string
           key_hint: string
           key_value: string
+          last_used_at: string | null
+          logo_url: string | null
+          spec: Json | null
           updated_at: string
           user_id: string
         }
         Insert: {
           app_id: string
           created_at?: string
+          display_name?: string | null
           enabled?: boolean
           id?: string
           key_hint?: string
           key_value: string
+          last_used_at?: string | null
+          logo_url?: string | null
+          spec?: Json | null
           updated_at?: string
           user_id: string
         }
         Update: {
           app_id?: string
           created_at?: string
+          display_name?: string | null
           enabled?: boolean
           id?: string
           key_hint?: string
           key_value?: string
+          last_used_at?: string | null
+          logo_url?: string | null
+          spec?: Json | null
           updated_at?: string
           user_id?: string
         }

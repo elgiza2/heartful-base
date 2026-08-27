@@ -11,18 +11,25 @@ export type ApiAppRow = {
   app_id: string;
   key_hint: string;
   enabled: boolean;
+  display_name?: string | null;
+  logo_url?: string | null;
+  spec?: any;
 };
 
 export async function listApiApps(): Promise<ApiAppRow[]> {
   const { data, error } = await supabase
     .from("user_api_apps")
-    .select("id, app_id, key_hint, enabled")
+    .select("id, app_id, key_hint, enabled, display_name, logo_url, spec")
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return (data as ApiAppRow[]) ?? [];
 }
 
-export async function saveApiAppKey(appId: string, key: string): Promise<void> {
+export async function saveApiAppKey(
+  appId: string,
+  key: string,
+  extra?: { name?: string; logo?: string; spec?: unknown },
+): Promise<void> {
   const trimmed = key.trim();
   if (trimmed.length < 6) throw new Error("Enter a valid key");
   const { data: auth } = await supabase.auth.getUser();
@@ -35,12 +42,16 @@ export async function saveApiAppKey(appId: string, key: string): Promise<void> {
       key_value: trimmed,
       key_hint: `••••${trimmed.slice(-4)}`,
       enabled: true,
+      display_name: extra?.name ?? null,
+      logo_url: extra?.logo ?? null,
+      spec: (extra?.spec ?? null) as any,
     },
     { onConflict: "user_id,app_id" },
   );
   if (error) throw new Error(error.message);
   notifyTurnContextChanged();
 }
+
 
 export async function removeApiApp(appId: string): Promise<void> {
   const { error } = await supabase.from("user_api_apps").delete().eq("app_id", appId);

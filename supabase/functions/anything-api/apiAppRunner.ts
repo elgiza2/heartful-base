@@ -46,6 +46,29 @@ type ToolSpec = { name: string; method: "GET" | "POST"; path: string; params: Pa
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: CORS });
 
+/** Directory apps may target any public HTTPS host, never an internal one. */
+function isPublicHttpsHost(url: URL): boolean {
+  if (url.protocol !== "https:") return false;
+  const h = url.hostname.toLowerCase();
+  if (
+    h === "localhost" ||
+    h.endsWith(".local") ||
+    h.endsWith(".internal") ||
+    h === "metadata.google.internal"
+  ) {
+    return false;
+  }
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) {
+    const [a, b] = h.split(".").map(Number);
+    if (a === 10 || a === 127 || a === 0 || a === 169) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
+  }
+  if (h.includes(":")) return false; // raw IPv6 literals
+  return true;
+}
+
+
 export async function handleApiApp(_req: Request, admin: any, body: any): Promise<Response> {
   try {
     const token = String(body?.token ?? "");
@@ -56,14 +79,14 @@ export async function handleApiApp(_req: Request, admin: any, body: any): Promis
     if (userErr || !userId) return json({ ok: false, error: "Not signed in" }, 401);
 
     const appId = String(body?.app ?? "");
-    const spec = body?.spec as { baseUrl: string; auth: Auth; tool: ToolSpec } | undefined;
-    if (!appId || !spec?.baseUrl || !spec?.tool) {
+    let spec = body?.spec as { baseUrl: string; auth: Auth; tool: ToolSpec } | undefined;
+    if (!appId || !spec?.tool) {
       return json({ ok: false, error: "Missing request details" }, 400);
     }
 
     const { data: row, error: rowErr } = await admin
       .from("user_api_apps")
-      .select("key_value, enabled")
+      .select("key_value, enabled, spec")
       .eq("user_id", userId)
       .eq("app_id", appId)
       .maybeSingle();
@@ -71,7 +94,16 @@ export async function handleApiApp(_req: Request, admin: any, body: any): Promis
     if (!row?.key_value) return json({ ok: false, error: "No key saved for this app" }, 400);
     if (row.enabled === false) return json({ ok: false, error: "This app is turned off" }, 400);
 
+    // For directory apps the trusted definition is the one saved at connect time.
+    if (row.spec?.baseUrl) {
+      const saved = (row.spec.tools ?? []).find((t: ToolSpec) => t.name === spec!.tool.name);
+      if (!saved) return json({ ok: false, error: "Unknown action" }, 400);
+      spec = { baseUrl: String(row.spec.baseUrl), auth: row.spec.auth as Auth, tool: saved };
+    }
+    if (!spec?.baseUrl) return json({ ok: false, error: "Missing request details" }, 400);
+
     const key = String(row.key_value);
+
     const params = (body?.params ?? {}) as Record<string, unknown>;
     const auth = spec.auth;
     const tool = spec.tool;
@@ -90,9 +122,11 @@ export async function handleApiApp(_req: Request, admin: any, body: any): Promis
     if (/\{[^}]+\}/.test(path)) return json({ ok: false, error: "Missing path value" }, 400);
 
     const url = new URL(spec.baseUrl.replace(/\/$/, "") + path);
-    if (!ALLOWED_HOSTS.has(url.hostname)) {
+    const trusted = ALLOWED_HOSTS.has(url.hostname);
+    if (!trusted && !isPublicHttpsHost(url)) {
       return json({ ok: false, error: "This service is not allowed" }, 400);
     }
+
 
     for (const p of tool.params.filter((x) => x.in === "query")) {
       const v = params[p.name];
