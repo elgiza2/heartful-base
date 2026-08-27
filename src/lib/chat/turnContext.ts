@@ -180,7 +180,15 @@ export function buildTurnContextBrief(ctx: TurnContext): string {
 
   if (ctx.mcpServers.length) {
     const lines = ctx.mcpServers
-      .map((s) => `- ${s.name}${s.tools.length ? `: ${s.tools.slice(0, 12).join(", ")}` : ""}`)
+      .map((s) => {
+        const detail = s.toolDetails.length
+          ? s.toolDetails
+              .slice(0, 12)
+              .map((t) => `    • ${t.name}${t.description ? ` — ${t.description}` : ""}`)
+              .join("\n")
+          : s.tools.slice(0, 12).map((t) => `    • ${t}`).join("\n");
+        return `- ${s.name}${detail ? `\n${detail}` : ""}`;
+      })
       .join("\n");
     parts.push(
       [
