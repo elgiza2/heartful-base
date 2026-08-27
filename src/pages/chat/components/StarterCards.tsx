@@ -21,48 +21,48 @@ const CARDS = [
     mode: "images",
     img: imageImg,
     title: "Generate images",
-    desc: "Photoreal images, edits and variations",
+    desc: "Photoreal images and edits",
   },
   {
     id: "web",
     mode: "code",
     img: webImg,
     title: "Build a website",
-    desc: "A live page with real layout and code",
+    desc: "Live page with real code",
   },
   {
     id: "video",
     mode: "video",
     img: videoImg,
     title: "Generate video",
-    desc: "Short cinematic clips from a prompt",
+    desc: "Cinematic clips from a prompt",
   },
   {
     id: "slides",
     mode: "slides",
     img: slidesImg,
     title: "Presentation",
-    desc: "Designed slides with charts and images",
+    desc: "Designed slides with charts",
   },
   {
     id: "research",
     mode: "deep-research",
     img: researchImg,
     title: "Deep research",
-    desc: "A sourced report from many references",
+    desc: "Sourced, referenced report",
   },
   {
     id: "docs",
     mode: "docs",
     img: docsImg,
     title: "Analyze documents",
-    desc: "Extract tables and answers from files",
+    desc: "Tables and answers from files",
   },
   {
     id: "integrations",
     img: integrationsImg,
     title: "Integrations",
-    desc: "Connect your apps and act from them directly",
+    desc: "Connect and use your apps",
   },
 ];
 
@@ -111,7 +111,7 @@ export function StarterCards({ onPick, className = "" }: StarterCardsProps) {
               <span className="text-[15px] font-bold leading-tight text-foreground truncate">
                 {c.title}
               </span>
-              <span className="text-[12.5px] leading-snug text-foreground/45 line-clamp-2">
+              <span className="text-[11.5px] leading-snug text-foreground/45 truncate">
                 {c.desc}
               </span>
             </span>
