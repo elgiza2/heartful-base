@@ -81,7 +81,7 @@ export async function fetchTurnContext(): Promise<TurnContext> {
       .limit(30),
     supabase
       .from("mcp_connections")
-      .select("id, name, transport, tool_names, enabled")
+      .select("id, name, transport, tool_names, tools, protocol_version, enabled")
       .eq("user_id", userId)
       .eq("enabled", true)
       .limit(20),
