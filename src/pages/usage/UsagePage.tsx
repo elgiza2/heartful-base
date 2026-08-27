@@ -97,14 +97,11 @@ const UsagePage = () => {
               </button>
             </div>
 
-            <button type="button" className="usg-banner" onClick={() => navigate("/pricing")}>
-              <span>Megsy 1.6 free for a limited time</span>
-              <ChevronRight className="w-4 h-4" />
-            </button>
-
             <div className="usg-line">
+              <Coins className="usg-licon" />
               <span className="usg-llabel">Credits</span>
               <HelpCircle className="usg-lhelp" />
+
               <span className="usg-lvalue">{credits ?? 0}</span>
             </div>
 
