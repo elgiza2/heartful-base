@@ -1,7 +1,7 @@
 /** @doc Usage — plan card, credit balance and dated credit-usage history. */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, ChevronLeft, CalendarClock, HelpCircle, Loader2 } from "lucide-react";
+import { Coins, ChevronLeft, CalendarClock, HelpCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCredits } from "@/hooks/useCredits";
 import { goBackOr } from "@/lib/navigation";
