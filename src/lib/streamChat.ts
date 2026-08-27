@@ -255,6 +255,19 @@ export async function streamChat({
     // Per-mode + per-model system prompt override (learning mode, model
     // voices, depth/language rules). The edge function uses customSystem
     // verbatim when present.
+    // User-configured context (knowledge, tool servers, connected apps,
+    // browser session preferences) — collected once per turn.
+    let turnCtx: Awaited<ReturnType<typeof import("@/lib/chat/turnContext").fetchTurnContext>> | null = null;
+    let turnCtxBrief = "";
+    let turnCtxPayload: Record<string, unknown> = {};
+    try {
+      const mod = await import("@/lib/chat/turnContext");
+      turnCtx = await mod.fetchTurnContext();
+      turnCtxBrief = mod.buildTurnContextBrief(turnCtx);
+      turnCtxPayload = mod.turnContextPayload(turnCtx);
+    } catch {
+      turnCtx = null;
+    }
     let customSystem: string | null = null;
     try {
       const mod = await import("@/lib/modelSystemPrompts");
@@ -276,6 +289,7 @@ export async function streamChat({
       customSystem = mod.buildCustomSystem(promptMode, selectedModel?.id, learnState);
       const { CAPABILITIES_BRIEF } = await import("@/lib/chat/capabilities");
       customSystem = `${customSystem || ""}\n\n${CAPABILITIES_BRIEF}`.trim();
+      if (turnCtxBrief) customSystem = `${customSystem}\n\n${turnCtxBrief}`.trim();
       if (chatMode !== "images" && chatMode !== "video") {
         const { chatModelPreferenceHint } = await import("@/lib/chatModelPreferences");
         const preferenceHint = chatModelPreferenceHint();
@@ -312,6 +326,7 @@ export async function streamChat({
         activeSkill,
         availableSkills,
         customSystem,
+        ...turnCtxPayload,
         zone: (typeof window !== "undefined" && (window as any).__MEGSY_ZONE__) || "megsy",
       });
     let resp: Response | null = null;
