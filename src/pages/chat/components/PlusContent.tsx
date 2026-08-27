@@ -233,10 +233,10 @@ const PlusMain = (p: PlusContentProps) => {
         variants={{ hidden: {}, show: { transition: { staggerChildren: 0.022, delayChildren: 0.02 } } }}
       >
         <style>{`
-          .kimi-tile { background: hsl(0 0% 100% / 0.05); border: 0; transition: background 150ms ease; }
-          .kimi-tile:active { background: hsl(0 0% 100% / 0.09); }
-          .plus-row { transition: background 150ms ease; }
-          .plus-row:active { background: hsl(0 0% 100% / 0.06); }
+          .kimi-tile { background: transparent; border: 0; transition: opacity 150ms ease; }
+          .kimi-tile:active { opacity: 0.65; }
+          .plus-row { transition: opacity 150ms ease; }
+          .plus-row:active { opacity: 0.65; }
         `}</style>
 
 
@@ -283,17 +283,9 @@ const PlusMain = (p: PlusContentProps) => {
                   {section.title}
                 </div>
               )}
-              <div
-                className="flex flex-col rounded-[14px] overflow-hidden"
-                style={{ background: "hsl(0 0% 100% / 0.04)" }}
-              >
-                {section.items.map((it, ii) => (
-                  <div key={it.id}>
-                    {ii > 0 && (
-                      <div className="h-px ms-[48px]" style={{ background: "hsl(0 0% 100% / 0.05)" }} />
-                    )}
-                    <SheetRow item={it} />
-                  </div>
+              <div className="flex flex-col" style={{ background: "transparent" }}>
+                {section.items.map((it) => (
+                  <SheetRow key={it.id} item={it} />
                 ))}
               </div>
             </motion.div>
