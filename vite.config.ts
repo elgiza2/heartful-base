@@ -290,6 +290,51 @@ function mcpDevPlugin(): Plugin {
 }
 
 
+/** Dev-server equivalent of api/clerk.ts (Apple sign-in bridge + app integrations). */
+function clerkDevPlugin(): Plugin {
+  return {
+    name: "clerk-dev",
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use("/api/clerk", (req, res) => {
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Cache-Control", "no-store");
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Headers", "authorization, content-type");
+        if (req.method === "OPTIONS") {
+          res.statusCode = 204;
+          res.end();
+          return;
+        }
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.end(JSON.stringify({ ok: false, error: "Method not allowed" }));
+          return;
+        }
+        const chunks: Buffer[] = [];
+        req.on("data", (c) => chunks.push(Buffer.from(c)));
+        req.on("end", async () => {
+          let payload: unknown = null;
+          try {
+            payload = chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : null;
+          } catch {
+            payload = null;
+          }
+          try {
+            const { handleClerk } = await import("./src/lib/clerk/bridgeCore");
+            const result = await handleClerk(payload as never);
+            res.statusCode = result.status;
+            res.end(JSON.stringify(result.body));
+          } catch (error) {
+            res.statusCode = 500;
+            res.end(
+              JSON.stringify({ ok: false, error: error instanceof Error ? error.message : "clerk_failed" }),
+            );
+          }
+        });
+      });
+    },
+  };
+}
 
 /** Dev-server equivalent of api/web-search.ts (Deep Research live sources). */
 function webSearchDevPlugin(): Plugin {
