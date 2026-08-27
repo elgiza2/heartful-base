@@ -1110,6 +1110,13 @@ Deno.serve(async (req) => {
       return await handleTools(req, createClient(SUPABASE_URL, SERVICE_KEY), body);
     }
 
+    // ready-made API apps (bring your own key)
+    if (body?.kind === "api_app") {
+      const { handleApiApp } = await import("./apiAppRunner.ts");
+      return await handleApiApp(req, createClient(SUPABASE_URL, SERVICE_KEY), body);
+    }
+
+
     // video generation
     if (body?.kind === "video" || body?.media === "video") {
       return await handleVideo(req, createClient(SUPABASE_URL, SERVICE_KEY), body);
