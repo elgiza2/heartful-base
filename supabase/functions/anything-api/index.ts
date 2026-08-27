@@ -905,6 +905,9 @@ async function handleTools(
           .eq("user_id", userId);
         rows = (data as any[]) ?? [];
       }
+      } catch (_e) {
+        rows = [];
+      }
       if (!rows.length) {
         const { data } = await admin
           .from("pipedream_accounts")
@@ -913,13 +916,6 @@ async function handleTools(
         rows = (data as any[]) ?? [];
       }
 
-      } catch (_e) {
-        const { data } = await admin
-          .from("pipedream_accounts")
-          .select("app_slug, account_id, account_name, healthy")
-          .eq("user_id", userId);
-        rows = (data as any[]) ?? [];
-      }
 
       const { data: prefs } = await admin
         .from("pipedream_tool_settings")
