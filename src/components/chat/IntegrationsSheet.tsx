@@ -30,15 +30,15 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-type Tab = "apps" | "tools" | "accounts" | "api" | "mcp";
+type Tab = "apps" | "accounts" | "api" | "mcp";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "apps", label: "Apps" },
-  { id: "tools", label: "Tools" },
   ...(clerkEnabled ? [{ id: "accounts" as Tab, label: "Accounts" }] : []),
   { id: "api", label: "Custom API" },
   { id: "mcp", label: "Custom MCP" },
 ];
+
 
 /** Connectors needing an API key / manual credentials instead of OAuth. */
 const needsApiKey = (i: Integration) => i.type === "service" || i.type === "notification";
