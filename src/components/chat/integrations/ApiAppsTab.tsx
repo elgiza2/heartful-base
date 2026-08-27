@@ -45,15 +45,16 @@ export default function ApiAppsTab({
     };
   }, [reloadKey]);
 
-  // Load the directory index once, lazily, the first time the user searches.
+  // Load the directory index as soon as the tab opens so the extra services
+  // are browsable, not only findable by search.
   useEffect(() => {
-    if (query.trim().length < 2 || dir.length) return;
     let alive = true;
     void fetchDirectory().then((d) => alive && setDir(d));
     return () => {
       alive = false;
     };
-  }, [query, dir.length]);
+  }, []);
+
 
   const connectedIds = useMemo(() => new Set(rows.map((r) => r.app_id)), [rows]);
 
@@ -95,10 +96,12 @@ export default function ApiAppsTab({
   }, [query, connectedIds, savedDirApps]);
 
   const known = useMemo(() => new Set(list.map((a) => a.id)), [list]);
-  const dirResults = useMemo(
-    () => searchDirectory(dir, query).filter((e) => !known.has(e.id)),
-    [dir, query, known],
-  );
+  const dirResults = useMemo(() => {
+    const q = query.trim();
+    const found = q.length >= 2 ? searchDirectory(dir, q) : dir;
+    return found.filter((e) => !known.has(e.id)).slice(0, q ? 60 : 40);
+  }, [dir, query, known]);
+
 
   const openDirectoryApp = async (entry: DirectoryEntry) => {
     setOpening(entry.id);
@@ -152,7 +155,10 @@ export default function ApiAppsTab({
       {dirResults.length > 0 && (
         <>
           <p className="px-2 pb-1 pt-4 text-[12px] text-foreground/40">
-            More services ({dirResults.length})
+            {query.trim().length >= 2
+              ? `More services (${dirResults.length})`
+              : `More services — search ${dir.length.toLocaleString()} available`}
+
           </p>
           {dirResults.map((entry) => (
             <button
