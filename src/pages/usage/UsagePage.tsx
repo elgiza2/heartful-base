@@ -1,7 +1,7 @@
 /** @doc Usage — plan card, credit balance and dated credit-usage history. */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, ChevronLeft, Sparkles, CalendarClock, HelpCircle, Loader2 } from "lucide-react";
+import { ChevronRight, ChevronLeft, CalendarClock, HelpCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCredits } from "@/hooks/useCredits";
 import { goBackOr } from "@/lib/navigation";
@@ -16,8 +16,25 @@ type Tx = {
 
 const DAILY_REFRESH = 300;
 
+/** Never expose upstream provider or model names in the UI. */
+const cleanLabel = (raw: string | null, action: string | null) => {
+  const s = `${raw ?? ""} ${action ?? ""}`.toLowerCase();
+  if (/reward|follow|bonus/.test(s)) return "Reward";
+  if (/refresh|daily/.test(s)) return "Daily refresh";
+  if (/video|veo|sora|kling|hailuo|seedance|ltx/.test(s)) return "Video generation";
+  if (/headshot|inpaint|bg-remover|remover|colorizer|sketch|retouch|perspective|product-photo|thumbnail|hair|character-swap|storyboard|image-tool/.test(s))
+    return "Image editing";
+  if (/image|seedream|gpt-image|render/.test(s)) return "Image generation";
+  if (/slide|presentation/.test(s)) return "Presentation";
+  if (/research|report/.test(s)) return "Research";
+  if (/page|code|web/.test(s)) return "Web page";
+  if (/chat|message|manus|generation/.test(s)) return "Generation";
+  return "Task";
+};
+
 const dayLabel = (iso: string) =>
   new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
 
 const UsagePage = () => {
   const navigate = useNavigate();
@@ -86,11 +103,11 @@ const UsagePage = () => {
             </button>
 
             <div className="usg-line">
-              <Sparkles className="usg-licon" />
               <span className="usg-llabel">Credits</span>
               <HelpCircle className="usg-lhelp" />
               <span className="usg-lvalue">{credits ?? 0}</span>
             </div>
+
             <div className="usg-line usg-line-sub">
               <span className="usg-llabel usg-muted">Free credits</span>
               <span className="usg-lvalue usg-muted">{credits ?? 0}</span>
@@ -116,7 +133,7 @@ const UsagePage = () => {
                 <div className="usg-card usg-list">
                   {items.map((it) => (
                     <div key={it.id} className="usg-item">
-                      <span className="usg-item-title">{it.description || it.action_type || "Task"}</span>
+                      <span className="usg-item-title">{cleanLabel(it.description, it.action_type)}</span>
                       <span className="usg-item-cost">{Math.abs(Number(it.amount) || 0)}</span>
                     </div>
                   ))}
