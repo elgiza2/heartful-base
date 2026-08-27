@@ -16,8 +16,25 @@ type Tx = {
 
 const DAILY_REFRESH = 300;
 
+/** Never expose upstream provider or model names in the UI. */
+const cleanLabel = (raw: string | null, action: string | null) => {
+  const s = `${raw ?? ""} ${action ?? ""}`.toLowerCase();
+  if (/reward|follow|bonus/.test(s)) return "Reward";
+  if (/refresh|daily/.test(s)) return "Daily refresh";
+  if (/video|veo|sora|kling|hailuo|seedance|ltx/.test(s)) return "Video generation";
+  if (/headshot|inpaint|bg-remover|remover|colorizer|sketch|retouch|perspective|product-photo|thumbnail|hair|character-swap|storyboard|image-tool/.test(s))
+    return "Image editing";
+  if (/image|seedream|gpt-image|render/.test(s)) return "Image generation";
+  if (/slide|presentation/.test(s)) return "Presentation";
+  if (/research|report/.test(s)) return "Research";
+  if (/page|code|web/.test(s)) return "Web page";
+  if (/chat|message|manus|generation/.test(s)) return "Generation";
+  return "Task";
+};
+
 const dayLabel = (iso: string) =>
   new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
 
 const UsagePage = () => {
   const navigate = useNavigate();
