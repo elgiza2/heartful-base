@@ -863,20 +863,29 @@ async function handleTools(
     return json({ ok: false, error: "App tools are not configured yet" }, 400);
   }
 
+  // Same external-user convention as the account-linking function.
+  const externalUserId = `megsy_${userId}`;
+
   try {
     if (action === "list") {
       let rows: any[] = [];
       try {
-        const data = await toolsFetch(cfg, "/accounts", {
-          query: { external_user_id: userId, limit: "100" },
-        });
-        const accounts: any[] = Array.isArray(data?.data) ? data.data : [];
+        const accounts: any[] = [];
+        for (const ext of [externalUserId, userId]) {
+          const data = await toolsFetch(cfg, "/accounts", {
+            query: { external_user_id: ext, limit: "100" },
+          });
+          if (Array.isArray(data?.data)) accounts.push(...data.data);
+        }
+        const seen = new Set<string>();
         rows = accounts
           .map((a) => {
             const slug = toolsAppSlug(a);
-            if (!slug || !a?.id) return null;
+            if (!slug || !a?.id || seen.has(String(slug))) return null;
+            seen.add(String(slug));
             return {
               user_id: userId,
+              external_user_id: String(a.external_id ?? externalUserId),
               app_slug: String(slug),
               account_id: String(a.id),
               account_name: String(a.name ?? a.external_id ?? slug),
@@ -889,6 +898,21 @@ async function handleTools(
         if (rows.length) {
           await admin.from("pipedream_accounts").upsert(rows, { onConflict: "user_id,app_slug" });
         }
+      } catch (_e) {
+        const { data } = await admin
+          .from("pipedream_accounts")
+          .select("app_slug, account_id, account_name, healthy")
+          .eq("user_id", userId);
+        rows = (data as any[]) ?? [];
+      }
+      if (!rows.length) {
+        const { data } = await admin
+          .from("pipedream_accounts")
+          .select("app_slug, account_id, account_name, healthy")
+          .eq("user_id", userId);
+        rows = (data as any[]) ?? [];
+      }
+
       } catch (_e) {
         const { data } = await admin
           .from("pipedream_accounts")
