@@ -1,7 +1,7 @@
 /** @doc Usage — plan card, credit balance and dated credit-usage history. */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, ChevronLeft, CalendarClock, HelpCircle, Loader2 } from "lucide-react";
+import { Coins, ChevronLeft, CalendarClock, HelpCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCredits } from "@/hooks/useCredits";
 import { goBackOr } from "@/lib/navigation";
@@ -97,14 +97,11 @@ const UsagePage = () => {
               </button>
             </div>
 
-            <button type="button" className="usg-banner" onClick={() => navigate("/pricing")}>
-              <span>Megsy 1.6 free for a limited time</span>
-              <ChevronRight className="w-4 h-4" />
-            </button>
-
             <div className="usg-line">
+              <Coins className="usg-licon" />
               <span className="usg-llabel">Credits</span>
               <HelpCircle className="usg-lhelp" />
+
               <span className="usg-lvalue">{credits ?? 0}</span>
             </div>
 
