@@ -1,10 +1,22 @@
-/** @doc Manage MCP (Model Context Protocol) server connections.
- *  Users add remote MCP endpoints; probe lists tools; the chat backend
- *  will consume enabled servers as extra tool sources.
+/** @doc Connected tool servers (Model Context Protocol, 2026-07-28 spec).
+ *
+ *  Everything here goes through the /api/mcp gateway: the browser never talks
+ *  to a tool server directly and never holds its credentials. Servers that
+ *  require sign-in are handled with a hosted consent flow; servers that use a
+ *  static token accept custom headers instead.
  */
-import { useEffect, useState } from "react";
-import { Loader2, Plus, RefreshCw, Trash2, Zap, ZapOff, Play } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  Lock,
+  Play,
+  Plus,
+  RefreshCw,
+  Shield,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,62 +24,221 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { SubShell, SubSection, SubCard } from "@/components/settings/SubShell";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { notifyTurnContextChanged } from "@/lib/chat/turnContext";
+import {
+  addMcpServer,
+  approveMcpTool,
+  authorizeMcpServer,
+  callMcpTool,
+  listMcpServers,
+  probeMcpServer,
+  removeMcpServer,
+  revokeMcpTool,
+  updateMcpServer,
+  type McpApproval,
+  type McpServer,
+  type McpToolInfo,
+} from "@/lib/mcp/client";
 
-interface McpRow {
-  id: string;
-  name: string;
-  url: string;
-  transport: string;
-  state: string;
-  tool_names: string[];
-  last_error: string | null;
-  enabled: boolean;
-  auth_headers: Record<string, string>;
-  created_at: string;
+function parseHeaders(text: string): Record<string, string> {
+  if (!text.trim()) return {};
+  try {
+    const obj = JSON.parse(text);
+    if (obj && typeof obj === "object") return obj as Record<string, string>;
+  } catch {
+    /* fall through to line parser */
+  }
+  const out: Record<string, string> = {};
+  for (const line of text.split(/\r?\n/)) {
+    const idx = line.indexOf(":");
+    if (idx <= 0) continue;
+    out[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
+  }
+  return out;
 }
 
-async function callMcpManage(action: string, payload: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke("crawl-url", {
-    body: { action: `mcp_${action}`, ...payload },
-  });
-
-  if (error) throw new Error(error.message);
-  return data as { ok?: boolean; error?: string; tools?: { name: string }[]; tool_names?: string[] };
+function StateBadge({ server }: { server: McpServer }) {
+  if (server.state === "connected") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11.5px] text-emerald-500">
+        <CheckCircle2 className="h-3.5 w-3.5" /> Connected
+      </span>
+    );
+  }
+  if (server.state === "needs_auth") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11.5px] text-amber-500">
+        <Lock className="h-3.5 w-3.5" /> Sign-in required
+      </span>
+    );
+  }
+  if (server.state === "error") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11.5px] text-destructive">
+        <AlertCircle className="h-3.5 w-3.5" /> Not reachable
+      </span>
+    );
+  }
+  return <span className="text-[11.5px] text-muted-foreground">Checking…</span>;
 }
 
 export default function McpSettingsPage() {
-  const [rows, setRows] = useState<McpRow[]>([]);
+  const [servers, setServers] = useState<McpServer[]>([]);
+  const [approvals, setApprovals] = useState<McpApproval[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  const [open, setOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [headersText, setHeadersText] = useState("");
   const [saving, setSaving] = useState(false);
-  const [probing, setProbing] = useState(false);
 
-  // Test-tool dialog
-  const [testOpen, setTestOpen] = useState(false);
-  const [testRow, setTestRow] = useState<McpRow | null>(null);
+  const [testServer, setTestServer] = useState<McpServer | null>(null);
   const [testTool, setTestTool] = useState("");
   const [testArgs, setTestArgs] = useState("{}");
   const [testResult, setTestResult] = useState<string | null>(null);
   const [testRunning, setTestRunning] = useState(false);
 
-  function openTest(row: McpRow) {
-    setTestRow(row);
-    setTestTool(row.tool_names?.[0] ?? "");
-    setTestArgs("{}");
-    setTestResult(null);
-    setTestOpen(true);
+  const approvedSet = useMemo(
+    () => new Set(approvals.map((a) => `${a.connection_id}:${a.tool_name}`)),
+    [approvals],
+  );
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await listMcpServers();
+      setServers(res.servers ?? []);
+      setApprovals(res.approvals ?? []);
+    } catch (err) {
+      toast.error((err as Error).message);
+      setServers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  function handleAuthorize(res: { authorize_url?: string }) {
+    if (res.authorize_url) {
+      window.location.href = res.authorize_url;
+      return true;
+    }
+    return false;
+  }
+
+  async function onAdd() {
+    if (!url.trim()) {
+      toast.error("Server URL is required");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await addMcpServer({
+        name: name.trim() || undefined,
+        url: url.trim(),
+        headers: parseHeaders(headersText),
+      });
+      if (res.ok === false) throw new Error(res.error || "Could not connect");
+      setAddOpen(false);
+      setName("");
+      setUrl("");
+      setHeadersText("");
+      notifyTurnContextChanged();
+      if (handleAuthorize(res)) return;
+      const count = Array.isArray(res.tools) ? res.tools.length : 0;
+      toast.success(count ? `Connected — ${count} tools found` : "Server added");
+      await load();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onRefresh(server: McpServer) {
+    setBusyId(server.id);
+    try {
+      const res = await probeMcpServer(server.id);
+      if (handleAuthorize(res)) return;
+      if (res.error) toast.error(String(res.error));
+      else toast.success(`${Array.isArray(res.tools) ? res.tools.length : 0} tools available`);
+      notifyTurnContextChanged();
+      await load();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function onSignIn(server: McpServer) {
+    setBusyId(server.id);
+    try {
+      const res = await authorizeMcpServer(server.id);
+      if (handleAuthorize(res)) return;
+      toast.error(String(res.error || "This server does not support hosted sign-in"));
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function onToggle(server: McpServer, enabled: boolean) {
+    setServers((rows) => rows.map((r) => (r.id === server.id ? { ...r, enabled } : r)));
+    try {
+      await updateMcpServer(server.id, { enabled });
+      notifyTurnContextChanged();
+    } catch (err) {
+      toast.error((err as Error).message);
+      await load();
+    }
+  }
+
+  async function onRemove(server: McpServer) {
+    setBusyId(server.id);
+    try {
+      await removeMcpServer(server.id);
+      notifyTurnContextChanged();
+      setServers((rows) => rows.filter((r) => r.id !== server.id));
+      toast.success("Removed");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function onToggleApproval(server: McpServer, tool: McpToolInfo, approved: boolean) {
+    const key = `${server.id}:${tool.name}`;
+    try {
+      if (approved) {
+        await approveMcpTool(server.id, tool.name, "always");
+        setApprovals((rows) => [...rows, { connection_id: server.id, tool_name: tool.name, scope: "always" }]);
+      } else {
+        await revokeMcpTool(server.id, tool.name);
+        setApprovals((rows) => rows.filter((r) => `${r.connection_id}:${r.tool_name}` !== key));
+      }
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
   }
 
   async function runTest() {
-    if (!testRow || !testTool.trim()) {
-      toast.error("Tool name required");
+    if (!testServer || !testTool.trim()) {
+      toast.error("Pick a tool first");
       return;
     }
     let args: Record<string, unknown> = {};
@@ -80,375 +251,235 @@ export default function McpSettingsPage() {
     setTestRunning(true);
     setTestResult(null);
     try {
-      const { data, error } = await supabase.functions.invoke("crawl-url", {
-        body: { action: "mcp_call_tool", id: testRow.id, tool: testTool.trim(), arguments: args },
-      });
-      if (error) throw new Error(error.message);
-      setTestResult(JSON.stringify(data, null, 2));
+      const res = await callMcpTool(testServer.id, testTool.trim(), args);
+      if (res.needs_approval) {
+        await approveMcpTool(testServer.id, testTool.trim(), "always");
+        const retry = await callMcpTool(testServer.id, testTool.trim(), args);
+        setTestResult(retry.text || JSON.stringify(retry.result ?? retry, null, 2));
+        await load();
+      } else if (res.ok === false) {
+        setTestResult(String(res.error || "Tool call failed"));
+      } else {
+        setTestResult(res.text || JSON.stringify(res.result ?? res, null, 2));
+      }
     } catch (err) {
-      setTestResult(String((err as Error).message ?? err));
+      setTestResult((err as Error).message);
     } finally {
       setTestRunning(false);
     }
   }
 
-  async function load() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("mcp_connections")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) {
-      toast.error(error.message);
-      setRows([]);
-    } else {
-      setRows((data ?? []) as McpRow[]);
-    }
-    setLoading(false);
-  }
-  useEffect(() => {
-    notifyTurnContextChanged();
-    load();
-  }, []);
-
-  function parseHeaders(text: string): Record<string, string> {
-    if (!text.trim()) return {};
-    try {
-      const obj = JSON.parse(text);
-      if (obj && typeof obj === "object") return obj as Record<string, string>;
-    } catch {
-      /* fall through to line parser */
-    }
-    const out: Record<string, string> = {};
-    for (const line of text.split("\n")) {
-      const i = line.indexOf(":");
-      if (i > 0) {
-        const k = line.slice(0, i).trim();
-        const v = line.slice(i + 1).trim();
-        if (k) out[k] = v;
-      }
-    }
-    return out;
-  }
-
-  async function handleAdd() {
-    if (!name.trim() || !url.trim()) {
-      toast.error("Name and URL are required");
-      return;
-    }
-    if (!/^https:\/\//i.test(url.trim())) {
-      toast.error("URL must start with https://");
-      return;
-    }
-    const headers = parseHeaders(headersText);
-    setSaving(true);
-    setProbing(true);
-    try {
-      // 1. probe first
-      const probe = await callMcpManage("probe", { url: url.trim(), headers });
-      setProbing(false);
-      const toolNames = probe.tool_names ?? probe.tools?.map((t) => t.name) ?? [];
-      const state = probe.ok ? "ready" : "failed";
-      const last_error = probe.ok ? null : probe.error ?? "probe failed";
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not signed in");
-
-      const { error } = await supabase.from("mcp_connections").insert({
-        user_id: user.id,
-        name: name.trim(),
-        url: url.trim(),
-        transport: "http",
-        auth_headers: headers,
-        state,
-        tool_names: toolNames,
-        last_error,
-      });
-      if (error) throw error;
-      toast.success(probe.ok ? `Connected — ${toolNames.length} tools` : `Saved but not ready: ${last_error}`);
-      setOpen(false);
-      setName("");
-      setUrl("");
-      setHeadersText("");
-      notifyTurnContextChanged();
-    load();
-    } catch (err) {
-      toast.error(String((err as Error).message ?? err));
-    } finally {
-      setSaving(false);
-      setProbing(false);
-    }
-  }
-
-  async function handleRefresh(row: McpRow) {
-    setRefreshingId(row.id);
-    try {
-      const res = await callMcpManage("refresh", { id: row.id });
-      if (res.ok) {
-        toast.success(`Refreshed — ${res.tools?.length ?? 0} tools`);
-      } else {
-        toast.error(res.error ?? "refresh failed");
-      }
-      notifyTurnContextChanged();
-    load();
-    } catch (err) {
-      toast.error(String((err as Error).message ?? err));
-    } finally {
-      setRefreshingId(null);
-    }
-  }
-
-  async function handleDelete(row: McpRow) {
-    if (!confirm(`Delete "${row.name}"?`)) return;
-    const { error } = await supabase.from("mcp_connections").delete().eq("id", row.id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success("Deleted");
-    notifyTurnContextChanged();
-    load();
-  }
-
-  async function handleToggle(row: McpRow) {
-    const { error } = await supabase
-      .from("mcp_connections")
-      .update({ enabled: !row.enabled })
-      .eq("id", row.id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    notifyTurnContextChanged();
-    load();
-  }
-
   return (
     <SubShell
-      title="MCP Connections"
-      subtitle="Connect Model Context Protocol servers (GitHub, Notion, Linear, custom…) to your chat."
+      title="Tool servers"
+      subtitle="Connect external tool servers so the assistant can act inside them during a chat."
       action={
-        <Button size="sm" onClick={() => setOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Add
+        <Button size="sm" onClick={() => setAddOpen(true)}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" /> Add server
         </Button>
       }
     >
       <SubSection
-        title="Your MCP servers"
-        description="Enabled servers are auto-available in chat. HTTPS only."
+        title="Your servers"
+        description="Enabled and connected servers are offered to the assistant on every message."
       >
-
         {loading ? (
           <SubCard>
-            <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading…
             </div>
           </SubCard>
-        ) : rows.length === 0 ? (
+        ) : servers.length === 0 ? (
           <SubCard>
-            <div className="p-6 text-sm text-muted-foreground text-center">
-              No MCP servers yet. Click <span className="text-foreground font-medium">Add</span> to connect one.
-            </div>
+            <p className="text-[12.5px] text-muted-foreground">
+              No servers yet. Add one to give the assistant extra tools.
+            </p>
           </SubCard>
         ) : (
-          <div className="space-y-3">
-            {rows.map((row) => (
-              <SubCard key={row.id}>
-                <div className="p-4 space-y-3">
+          <div className="space-y-2">
+            {servers.map((server) => {
+              const tools = server.tools ?? [];
+              return (
+                <SubCard key={server.id}>
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium truncate">{row.name}</span>
-                        <span
-                          className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                            row.state === "ready"
-                              ? "bg-emerald-500/15 text-emerald-500"
-                              : row.state === "failed"
-                                ? "bg-red-500/15 text-red-500"
-                                : "bg-yellow-500/15 text-yellow-600"
-                          }`}
-                        >
-                          {row.state}
-                        </span>
+                        <p className="truncate text-[13.5px] font-medium">{server.name}</p>
+                        <StateBadge server={server} />
                       </div>
-                      <div className="text-xs text-muted-foreground truncate mt-0.5">{row.url}</div>
-                      {row.last_error && (
-                        <div className="text-xs text-red-500 mt-1 line-clamp-2">{row.last_error}</div>
+                      <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground">{server.url}</p>
+                      {server.last_error && (
+                        <p className="mt-1 text-[11.5px] text-destructive">{server.last_error}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Switch
+                        checked={server.enabled}
+                        onCheckedChange={(v) => void onToggle(server, v)}
+                        aria-label="Enable server"
+                      />
                       <Button
+                        size="icon"
                         variant="ghost"
-                        size="sm"
-                        onClick={() => openTest(row)}
-                        disabled={row.state !== "ready" || !row.enabled}
-                        title="Test a tool"
+                        disabled={busyId === server.id}
+                        onClick={() => void onRefresh(server)}
+                        aria-label="Refresh tools"
                       >
-                        <Play className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleToggle(row)}
-                        title={row.enabled ? "Disable" : "Enable"}
-                      >
-                        {row.enabled ? <Zap className="h-4 w-4" /> : <ZapOff className="h-4 w-4 opacity-50" />}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRefresh(row)}
-                        disabled={refreshingId === row.id}
-                      >
-                        {refreshingId === row.id ? (
+                        {busyId === server.id ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <RefreshCw className="h-4 w-4" />
                         )}
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(row)}>
-                        <Trash2 className="h-4 w-4 text-red-500" />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        disabled={!tools.length}
+                        onClick={() => {
+                          setTestServer(server);
+                          setTestTool(tools[0]?.name ?? "");
+                          setTestArgs("{}");
+                          setTestResult(null);
+                        }}
+                        aria-label="Test a tool"
+                      >
+                        <Play className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => void onRemove(server)}
+                        aria-label="Remove server"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
                   </div>
 
-                  {row.tool_names?.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {row.tool_names.slice(0, 12).map((t) => (
-                        <span
-                          key={t}
-                          className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
-                        >
-                          {t}
-                        </span>
-                      ))}
-                      {row.tool_names.length > 12 && (
-                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                          +{row.tool_names.length - 12} more
-                        </span>
-                      )}
+                  {server.state === "needs_auth" && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="mt-3"
+                      disabled={busyId === server.id}
+                      onClick={() => void onSignIn(server)}
+                    >
+                      <Lock className="mr-1.5 h-3.5 w-3.5" /> Sign in to this server
+                    </Button>
+                  )}
+
+                  {tools.length > 0 && (
+                    <div className="mt-3 space-y-1.5">
+                      <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                        <Shield className="h-3 w-3" /> {tools.length} tools · approve the ones that may change data
+                      </p>
+                      {tools.map((tool) => {
+                        const readOnly = Boolean(tool.annotations?.readOnlyHint);
+                        const approved = approvedSet.has(`${server.id}:${tool.name}`);
+                        return (
+                          <div
+                            key={tool.name}
+                            className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-[12.5px]">{tool.title || tool.name}</p>
+                              {tool.description && (
+                                <p className="truncate text-[11px] text-muted-foreground">{tool.description}</p>
+                              )}
+                            </div>
+                            {readOnly ? (
+                              <span className="shrink-0 text-[11px] text-muted-foreground">Read only</span>
+                            ) : (
+                              <Switch
+                                checked={approved}
+                                onCheckedChange={(v) => void onToggleApproval(server, tool, v)}
+                                aria-label={`Approve ${tool.name}`}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
-                </div>
-              </SubCard>
-            ))}
+                </SubCard>
+              );
+            })}
           </div>
         )}
       </SubSection>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+      {/* Add server */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add MCP Server</DialogTitle>
+            <DialogTitle>Add a tool server</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="mcp-name">Name</Label>
-              <Input
-                id="mcp-name"
-                placeholder="e.g. GitHub MCP"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="mcp-url">URL (HTTPS Streamable HTTP endpoint)</Label>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="mcp-url">Server URL</Label>
               <Input
                 id="mcp-url"
-                placeholder="https://api.example.com/mcp"
+                placeholder="https://example.com/mcp"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
               />
             </div>
-            <div>
-              <Label htmlFor="mcp-headers">Auth headers (optional)</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="mcp-name">Name (optional)</Label>
+              <Input id="mcp-name" value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="mcp-headers">Headers (optional)</Label>
               <Textarea
                 id="mcp-headers"
-                placeholder={"Authorization: Bearer sk-...\n\nor JSON: {\"Authorization\":\"Bearer sk-...\"}"}
+                rows={3}
+                placeholder={'Authorization: Bearer …\nor {"Authorization": "Bearer …"}'}
                 value={headersText}
                 onChange={(e) => setHeadersText(e.target.value)}
-                rows={4}
-                className="font-mono text-xs"
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Stored encrypted at rest and forwarded server-side only.
+              <p className="text-[11px] text-muted-foreground">
+                Leave empty for servers that ask you to sign in — you will be redirected to grant access.
               </p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)} disabled={saving}>
+            <Button variant="ghost" onClick={() => setAddOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAdd} disabled={saving}>
-              {probing ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" /> Probing…
-                </>
-              ) : saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" /> Saving…
-                </>
-              ) : (
-                "Connect"
-              )}
+            <Button onClick={() => void onAdd()} disabled={saving}>
+              {saving && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />} Connect
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={testOpen} onOpenChange={setTestOpen}>
-        <DialogContent className="max-w-lg">
+      {/* Test tool */}
+      <Dialog open={Boolean(testServer)} onOpenChange={(open) => !open && setTestServer(null)}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Test tool — {testRow?.name}</DialogTitle>
+            <DialogTitle>Test a tool</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="test-tool">Tool name</Label>
-              <Input
-                id="test-tool"
-                value={testTool}
-                onChange={(e) => setTestTool(e.target.value)}
-                list="mcp-tool-list"
-              />
-              <datalist id="mcp-tool-list">
-                {(testRow?.tool_names ?? []).map((t) => (
-                  <option key={t} value={t} />
-                ))}
-              </datalist>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="test-tool">Tool</Label>
+              <Input id="test-tool" value={testTool} onChange={(e) => setTestTool(e.target.value)} />
             </div>
-            <div>
+            <div className="space-y-1.5">
               <Label htmlFor="test-args">Arguments (JSON)</Label>
-              <Textarea
-                id="test-args"
-                value={testArgs}
-                onChange={(e) => setTestArgs(e.target.value)}
-                rows={4}
-                className="font-mono text-xs"
-              />
+              <Textarea id="test-args" rows={4} value={testArgs} onChange={(e) => setTestArgs(e.target.value)} />
             </div>
-            {testResult && (
-              <div>
-                <Label>Result</Label>
-                <pre className="mt-1 max-h-64 overflow-auto rounded-md border bg-muted p-3 text-[11px] font-mono whitespace-pre-wrap">
-                  {testResult}
-                </pre>
-              </div>
+            {testResult !== null && (
+              <pre className="max-h-56 overflow-auto rounded-[10px] bg-black/20 p-3 text-[11.5px] whitespace-pre-wrap">
+                {testResult}
+              </pre>
             )}
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setTestOpen(false)} disabled={testRunning}>
+            <Button variant="ghost" onClick={() => setTestServer(null)}>
               Close
             </Button>
-            <Button onClick={runTest} disabled={testRunning}>
-              {testRunning ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" /> Running…
-                </>
-              ) : (
-                "Run"
-              )}
+            <Button onClick={() => void runTest()} disabled={testRunning}>
+              {testRunning && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />} Run
             </Button>
           </DialogFooter>
         </DialogContent>
