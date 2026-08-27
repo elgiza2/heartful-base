@@ -567,6 +567,7 @@ export default defineConfig({
     computerAgentDevPlugin(),
     longRunDevPlugin(),
     mcpDevPlugin(),
+    clerkDevPlugin(),
     webSearchDevPlugin(),
     readUrlDevPlugin(),
     deepResearchDevPlugin(),
