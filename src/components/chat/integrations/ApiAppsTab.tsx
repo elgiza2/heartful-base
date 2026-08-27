@@ -155,7 +155,10 @@ export default function ApiAppsTab({
       {dirResults.length > 0 && (
         <>
           <p className="px-2 pb-1 pt-4 text-[12px] text-foreground/40">
-            More services ({dirResults.length})
+            {query.trim().length >= 2
+              ? `More services (${dirResults.length})`
+              : `More services — search ${dir.length.toLocaleString()} available`}
+
           </p>
           {dirResults.map((entry) => (
             <button
