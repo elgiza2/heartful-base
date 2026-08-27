@@ -237,7 +237,7 @@ export default function McpSettingsPage() {
     >
       <SubSection
         title="Your MCP servers"
-        description="Enabled servers are auto-available in chat — Megsy routes tool-calling turns through Kimi K2. HTTPS only."
+        description="Enabled servers are auto-available in chat. HTTPS only."
       >
 
         {loading ? (
