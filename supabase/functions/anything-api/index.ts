@@ -1061,7 +1061,27 @@ async function handleTools(
 
     }
 
+    // Creates a link session in the same environment the tool runtime uses,
+    // so newly connected apps can actually run actions.
+    if (action === "connect") {
+      const data = await toolsFetch(cfg, "/tokens", {
+        method: "POST",
+        body: {
+          external_user_id: externalUserId,
+          allowed_origins: Array.isArray(body?.allowed_origins)
+            ? body.allowed_origins
+            : body?.redirect_origin
+              ? [String(body.redirect_origin)]
+              : undefined,
+        },
+      });
+      const link = data?.connect_link_url ?? data?.connectLinkUrl ?? null;
+      if (!link) return json({ ok: false, error: "Could not start the connection" }, 500);
+      return json({ ok: true, connect_link_url: String(link), token: data?.token ?? null });
+    }
+
     if (action === "set_enabled") {
+
       const app = String(body?.app ?? "").trim();
       if (!app) return json({ ok: false, error: "Missing app" }, 400);
       const enabled = body?.enabled !== false;
