@@ -6,13 +6,11 @@
  *  the assistant can run. Tapping an action drops a ready prompt in the composer.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  listAppTools,
   listToolApps,
   setAppToolsEnabled,
-  type AppTool,
   type ConnectedToolApp,
 } from "@/lib/pipedream/client";
 import { notifyTurnContextChanged } from "@/lib/chat/turnContext";
@@ -29,17 +27,14 @@ const fallbackItem = (slug: string): Integration =>
   ({ id: slug, app: slug, name: titleFor(slug), description: "", type: "service" }) as Integration;
 
 export default function AgentTools({
-  onClose,
   query = "",
+  onOpenApp,
 }: {
-  onClose?: () => void;
   query?: string;
+  onOpenApp?: (item: Integration) => void;
 }) {
   const [loading, setLoading] = useState(true);
   const [apps, setApps] = useState<ConnectedToolApp[]>([]);
-  const [open, setOpen] = useState<string | null>(null);
-  const [tools, setTools] = useState<Record<string, AppTool[]>>({});
-  const [loadingTools, setLoadingTools] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,24 +52,6 @@ export default function AgentTools({
     void load();
   }, [load]);
 
-  const expand = async (app: string) => {
-    if (open === app) {
-      setOpen(null);
-      return;
-    }
-    setOpen(app);
-    if (tools[app]) return;
-    setLoadingTools(app);
-    try {
-      const res = await listAppTools(app);
-      setTools((prev) => ({ ...prev, [app]: res.tools ?? [] }));
-    } catch (e: any) {
-      toast.error(e?.message || "Couldn't load actions");
-    } finally {
-      setLoadingTools(null);
-    }
-  };
-
   const toggle = async (app: ConnectedToolApp) => {
     const next = !app.enabled;
     setApps((prev) => prev.map((a) => (a.app === app.app ? { ...a, enabled: next } : a)));
@@ -85,15 +62,6 @@ export default function AgentTools({
       setApps((prev) => prev.map((a) => (a.app === app.app ? { ...a, enabled: app.enabled } : a)));
       toast.error(e?.message || "Couldn't save");
     }
-  };
-
-  const useTool = (app: string, tool: AppTool) => {
-    window.dispatchEvent(
-      new CustomEvent("megsy:composer-insert", {
-        detail: { text: `Use ${titleFor(app)} → ${tool.name}: ` },
-      }),
-    );
-    onClose?.();
   };
 
   const visible = useMemo(() => {
@@ -115,80 +83,46 @@ export default function AgentTools({
   return (
     <div>
       {visible.map((app) => {
-        const list = tools[app.app] ?? [];
-        const expanded = open === app.app;
         const item = findApp(app.app) ?? fallbackItem(app.app);
         return (
-          <div key={app.app}>
-            <div className="flex items-center gap-3 px-2 py-2.5" style={{ minHeight: 58 }}>
-              <button
-                type="button"
-                onClick={() => void expand(app.app)}
-                className="flex min-w-0 flex-1 items-center gap-3 text-start"
-                style={{ border: 0, background: "transparent" }}
-              >
-                <IntegrationLogo item={item} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[14.5px] font-medium text-foreground">
-                    {item.name}
-                  </span>
-                  <span
-                    dir="auto"
-                    className="mt-0.5 block truncate text-[11.5px] leading-[1.5] text-foreground/40"
-                  >
-                    {app.account_name || (app.healthy ? "Connected" : "Needs reconnect")}
-                    {list.length ? ` · ${list.length} actions` : ""}
-                  </span>
+          <div key={app.app} className="flex items-center gap-3 px-2 py-2.5" style={{ minHeight: 58 }}>
+            <button
+              type="button"
+              onClick={() => onOpenApp?.(item)}
+              className="flex min-w-0 flex-1 items-center gap-3 text-start"
+              style={{ border: 0, background: "transparent" }}
+            >
+              <IntegrationLogo item={item} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[14.5px] font-medium text-foreground">
+                  {item.name}
                 </span>
-                <ChevronDown
-                  className={`h-4 w-4 shrink-0 text-foreground/35 transition-transform ${
-                    expanded ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
-
-              <button
-                type="button"
-                role="switch"
-                aria-checked={app.enabled}
-                aria-label={`Use ${item.name} in chat`}
-                onClick={() => void toggle(app)}
-                className={`relative h-6 w-10 shrink-0 rounded-full transition-colors ${
-                  app.enabled ? "bg-primary" : "bg-foreground/15"
-                }`}
-                style={{ border: 0 }}
-              >
                 <span
-                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-background transition-all ${
-                    app.enabled ? "start-[18px]" : "start-0.5"
-                  }`}
-                />
-              </button>
-            </div>
+                  dir="auto"
+                  className="mt-0.5 block truncate text-[11.5px] leading-[1.5] text-foreground/40"
+                >
+                  {app.account_name || (app.healthy ? "Connected" : "Needs reconnect")}
+                </span>
+              </span>
+            </button>
 
-            {expanded && (
-              <div className="ps-[52px] pb-2">
-                {loadingTools === app.app ? (
-                  <div className="flex items-center py-3 text-foreground/40">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  </div>
-                ) : list.length === 0 ? (
-                  <p className="py-2 text-[12.5px] text-foreground/40">No actions for this app.</p>
-                ) : (
-                  list.slice(0, 40).map((tool) => (
-                    <button
-                      key={tool.key}
-                      type="button"
-                      onClick={() => useTool(app.app, tool)}
-                      className="block w-full rounded-[12px] py-1.5 pe-2 text-start active:bg-foreground/[0.05]"
-                      style={{ border: 0, background: "transparent" }}
-                    >
-                      <span className="block truncate text-[13px] text-foreground/85">{tool.name}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={app.enabled}
+              aria-label={`Use ${item.name} in chat`}
+              onClick={() => void toggle(app)}
+              className={`relative h-6 w-10 shrink-0 rounded-full transition-colors ${
+                app.enabled ? "bg-primary" : "bg-foreground/15"
+              }`}
+              style={{ border: 0 }}
+            >
+              <span
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-background transition-all ${
+                  app.enabled ? "start-[18px]" : "start-0.5"
+                }`}
+              />
+            </button>
           </div>
         );
       })}

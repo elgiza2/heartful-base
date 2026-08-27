@@ -18,6 +18,7 @@ import ClerkIntegrations from "./integrations/ClerkIntegrations";
 import { clerkEnabled } from "@/lib/clerk/config";
 import CustomMcpList from "./integrations/CustomMcpList";
 import AgentTools from "./integrations/AgentTools";
+import AppActionsPanel from "./integrations/AppActionsPanel";
 
 const DraggablePlusSheet = lazy(() =>
   import("@/pages/chat/components/DraggablePlusSheet").then((m) => ({
@@ -30,18 +31,14 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-type Tab = "apps" | "accounts" | "api" | "mcp";
+type Tab = "apps" | "accounts" | "custom";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "apps", label: "Apps" },
   ...(clerkEnabled ? [{ id: "accounts" as Tab, label: "Accounts" }] : []),
-  { id: "api", label: "Custom API" },
-  { id: "mcp", label: "Custom MCP" },
+  { id: "custom", label: "Custom" },
 ];
 
-
-/** Connectors needing an API key / manual credentials instead of OAuth. */
-const needsApiKey = (i: Integration) => i.type === "service" || i.type === "notification";
 
 const SLIDE = { duration: 0.22, ease: [0.32, 0.72, 0, 1] as const };
 
@@ -82,7 +79,7 @@ export default function IntegrationsSheet({ open, onOpenChange }: Props) {
   }, [open]);
 
   const list = useMemo(() => {
-    const base = tab === "api" ? CATALOG.filter(needsApiKey) : CATALOG;
+    const base = CATALOG;
     const q = query.trim().toLowerCase();
     if (!q) return base;
     return base.filter(
@@ -160,7 +157,16 @@ export default function IntegrationsSheet({ open, onOpenChange }: Props) {
                         busy={busy === detail.app}
                         onBack={() => setDetail(null)}
                         onToggle={() => void toggle(detail)}
-                      />
+                      >
+                        {connected[detail.app] && (
+                          <AppActionsPanel
+                            slug={detail.pipedreamSlug || detail.app}
+                            appName={detail.name}
+                            onUse={() => onOpenChange(false)}
+                          />
+                        )}
+                      </IntegrationDetail>
+
                     </motion.div>
                   ) : (
                     <motion.div
@@ -198,16 +204,16 @@ export default function IntegrationsSheet({ open, onOpenChange }: Props) {
                         />
                       </div>
 
-                      <div className="mt-3 flex gap-2">
+                      <div className="mt-3 flex gap-1 rounded-[14px] bg-foreground/[0.04] p-1">
                         {TABS.map((t) => (
                           <button
                             key={t.id}
                             type="button"
                             onClick={() => setTab(t.id)}
-                            className={`rounded-full px-4 py-2 text-[13px] transition-colors ${
+                            className={`flex-1 rounded-[11px] py-2 text-[13px] transition-colors ${
                               tab === t.id
-                                ? "bg-foreground/[0.08] font-medium text-foreground"
-                                : "bg-transparent text-foreground/55"
+                                ? "bg-background font-medium text-foreground"
+                                : "bg-transparent text-foreground/50"
                             }`}
                             style={{ border: 0 }}
                           >
@@ -217,20 +223,24 @@ export default function IntegrationsSheet({ open, onOpenChange }: Props) {
                       </div>
 
                       <div className="mt-2 flex-1">
-                        {tab === "mcp" ? (
-                          <CustomMcpList onNavigate={() => onOpenChange(false)} />
-                        ) : tab === "accounts" ? (
+                        {tab === "accounts" ? (
                           <ClerkIntegrations />
-                        ) : tab === "api" ? (
-                          <CustomApiKeys />
+                        ) : tab === "custom" ? (
+                          <div className="pb-2">
+                            <p className="px-2 pb-1 pt-2 text-[12px] text-foreground/40">API keys</p>
+                            <CustomApiKeys />
+                            <p className="px-2 pb-1 pt-5 text-[12px] text-foreground/40">MCP servers</p>
+                            <CustomMcpList onNavigate={() => onOpenChange(false)} />
+                          </div>
                         ) : list.length === 0 ? (
                           <EmptyConnectors label="No results" />
                         ) : (
                           <>
                             <div className="mb-3">
                               <p className="px-2 pb-1 pt-2 text-[12px] text-foreground/40">Currently connected</p>
-                              <AgentTools query={query} onClose={() => onOpenChange(false)} />
+                              <AgentTools query={query} onOpenApp={(item) => setDetail(item)} />
                             </div>
+
 
                             {restList.map((item) => (
                               <IntegrationRow
