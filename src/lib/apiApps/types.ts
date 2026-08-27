@@ -4,7 +4,8 @@
  *  how the key is sent, and the real endpoints exposed as assistant tools.
  */
 export type ApiAppAuth = {
-  type: "header" | "query";
+  /** `path` means the key is substituted into a `{key}` slot in the path. */
+  type: "header" | "query" | "path";
   name: string;
   prefix?: string;
 };
