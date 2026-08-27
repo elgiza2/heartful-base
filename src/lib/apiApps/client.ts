@@ -60,13 +60,26 @@ export async function runApiTool(
   tool: string,
   params: Record<string, unknown> = {},
 ): Promise<unknown> {
+  const { findApiApp } = await import("./catalog");
+  const app = findApiApp(appId);
+  const spec = app?.tools.find((t) => t.name === tool);
+  if (!app || !spec) throw new Error("Unknown action");
   const { data: session } = await supabase.auth.getSession();
   const token = session.session?.access_token;
   if (!token) throw new Error("Sign in to run this action");
   const { data, error } = await supabase.functions.invoke<any>("anything-api", {
-    body: { kind: "api_app", action: "run", token, app: appId, tool, params },
+    body: {
+      kind: "api_app",
+      action: "run",
+      token,
+      app: appId,
+      tool,
+      params,
+      spec: { baseUrl: app.baseUrl, auth: app.auth, tool: spec },
+    },
   });
   if (error && !data) throw new Error(error.message || "Request failed");
   if (data?.ok === false) throw new Error(data?.error || "Request failed");
   return data?.result;
 }
+
