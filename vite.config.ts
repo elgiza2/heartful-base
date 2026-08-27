@@ -290,51 +290,9 @@ function mcpDevPlugin(): Plugin {
 }
 
 
-/** Dev-server equivalent of api/pipedream.ts (connected-app agent tools). */
-function pipedreamDevPlugin(): Plugin {
-  return {
-    name: "pipedream-dev",
-    configureServer(server: ViteDevServer) {
-      server.middlewares.use("/api/pipedream", (req, res) => {
-        res.setHeader("Content-Type", "application/json");
-        res.setHeader("Cache-Control", "no-store");
-        res.setHeader("Access-Control-Allow-Origin", "*");
-        res.setHeader("Access-Control-Allow-Headers", "authorization, content-type");
-        if (req.method === "OPTIONS") {
-          res.statusCode = 204;
-          res.end();
-          return;
-        }
-        if (req.method !== "POST") {
-          res.statusCode = 405;
-          res.end(JSON.stringify({ ok: false, error: "Method not allowed" }));
-          return;
-        }
-        const chunks: Buffer[] = [];
-        req.on("data", (c) => chunks.push(Buffer.from(c)));
-        req.on("end", async () => {
-          let payload: unknown = null;
-          try {
-            payload = chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : null;
-          } catch {
-            payload = null;
-          }
-          try {
-            const { handleToolsGateway } = await import("./src/lib/pipedream/gatewayCore");
-            const result = await handleToolsGateway(payload as never);
-            res.statusCode = result.status;
-            res.end(JSON.stringify(result.body));
-          } catch (error) {
-            res.statusCode = 500;
-            res.end(
-              JSON.stringify({ ok: false, error: error instanceof Error ? error.message : "tools_failed" }),
-            );
-          }
-        });
-      });
-    },
-  };
-}
+// Connected-app agent tools now live in the backend function (anything-api,
+// action kind: "tools"), which already holds the provider credentials.
+
 
 
 /** Dev-server equivalent of api/clerk.ts (Apple sign-in bridge + app integrations). */
@@ -614,7 +572,6 @@ export default defineConfig({
     computerAgentDevPlugin(),
     longRunDevPlugin(),
     mcpDevPlugin(),
-    pipedreamDevPlugin(),
     clerkDevPlugin(),
     webSearchDevPlugin(),
     readUrlDevPlugin(),

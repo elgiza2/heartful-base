@@ -1,4 +1,4 @@
-/** @doc Browser helper for the connected-apps tool gateway (/api/pipedream).
+/** @doc Browser helper for the connected-apps tool gateway (backend function).
  *  The browser never holds provider credentials — only its own session token.
  */
 import { supabase } from "@/integrations/supabase/client";
@@ -33,14 +33,13 @@ async function gateway(action: string, payload: Record<string, unknown> = {}): P
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new Error("Sign in to use app tools");
-  const res = await fetch("/api/pipedream", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, token, ...payload }),
+  const { data: res, error } = await supabase.functions.invoke<GatewayResponse>("anything-api", {
+    body: { kind: "tools", action, token, ...payload },
   });
-  const body = (await res.json().catch(() => null)) as GatewayResponse | null;
+  if (error && !res) throw new Error(error.message || "App tools request failed");
+  const body = res ?? null;
   if (!body) throw new Error("App tools request failed");
-  if (!res.ok && body.error) throw new Error(body.error);
+  if (body.ok === false && body.error) throw new Error(body.error);
   return body;
 }
 
