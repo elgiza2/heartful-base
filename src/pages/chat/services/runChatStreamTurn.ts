@@ -97,6 +97,10 @@ type Skill = {
   description?: string;
   triggers?: string[];
   source?: string;
+  instructions?: string;
+  body?: string;
+  enabled_tools?: string[];
+  preferred_model?: string | null;
 };
 
 type ToolActivity = {
