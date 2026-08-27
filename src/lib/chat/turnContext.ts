@@ -12,7 +12,15 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export type KnowledgeEntry = { name: string; use_when: string; content: string };
-export type McpServerInfo = { id: string; name: string; transport: string; tools: string[] };
+export type McpToolInfo = { name: string; description: string; inputSchema?: unknown };
+export type McpServerInfo = {
+  id: string;
+  name: string;
+  transport: string;
+  protocolVersion?: string;
+  tools: string[];
+  toolDetails: McpToolInfo[];
+};
 export type ConnectedAppInfo = { slug: string; kind: string };
 
 export type TurnContext = {
