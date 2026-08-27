@@ -173,7 +173,24 @@ export default function IntegrationsSheet({ open, onOpenChange }: Props) {
                       </IntegrationDetail>
 
                     </motion.div>
+                  ) : apiDetail ? (
+                    <motion.div
+                      key="api-detail"
+                      initial={{ x: -24, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      exit={{ x: -24, opacity: 0 }}
+                      transition={SLIDE}
+                      className="flex min-h-full flex-col"
+                    >
+                      <ApiAppDetail
+                        app={apiDetail}
+                        onBack={() => setApiDetail(null)}
+                        onChanged={() => setApiReload((n) => n + 1)}
+                        onUse={() => onOpenChange(false)}
+                      />
+                    </motion.div>
                   ) : (
+
                     <motion.div
                       key="list"
                       initial={{ x: 24, opacity: 0 }}
