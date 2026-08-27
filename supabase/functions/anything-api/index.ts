@@ -769,8 +769,9 @@ async function toolsAccessToken(cfg: ToolsCfg): Promise<string> {
   return toolsToken.value;
 }
 
-async function toolsFetch(
+async function toolsFetchEnv(
   cfg: ToolsCfg,
+  environment: string,
   path: string,
   init: { method?: string; body?: unknown; query?: Record<string, string | undefined> } = {},
 ) {
@@ -782,7 +783,7 @@ async function toolsFetch(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
-      "X-PD-Environment": cfg.environment,
+      "X-PD-Environment": environment,
     },
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
   });
@@ -799,6 +800,23 @@ async function toolsFetch(
   }
   return data;
 }
+
+/** Tries the configured environment, then the alternate one (accounts may be linked in either). */
+async function toolsFetch(
+  cfg: ToolsCfg,
+  path: string,
+  init: { method?: string; body?: unknown; query?: Record<string, string | undefined> } = {},
+) {
+  const alt = cfg.environment === "production" ? "development" : "production";
+  try {
+    return await toolsFetchEnv(cfg, cfg.environment, path, init);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (/404|not found/i.test(msg)) return await toolsFetchEnv(cfg, alt, path, init);
+    throw e;
+  }
+}
+
 
 const toolsAppSlug = (a: any) =>
   a?.app?.name_slug ?? a?.app?.slug ?? a?.app_slug ?? a?.appSlug ?? null;
