@@ -769,8 +769,9 @@ async function toolsAccessToken(cfg: ToolsCfg): Promise<string> {
   return toolsToken.value;
 }
 
-async function toolsFetch(
+async function toolsFetchEnv(
   cfg: ToolsCfg,
+  environment: string,
   path: string,
   init: { method?: string; body?: unknown; query?: Record<string, string | undefined> } = {},
 ) {
@@ -782,7 +783,7 @@ async function toolsFetch(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
-      "X-PD-Environment": cfg.environment,
+      "X-PD-Environment": environment,
     },
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
   });
@@ -800,10 +801,84 @@ async function toolsFetch(
   return data;
 }
 
+/** Tries the configured environment, then the alternate one (accounts may be linked in either). */
+async function toolsFetch(
+  cfg: ToolsCfg,
+  path: string,
+  init: { method?: string; body?: unknown; query?: Record<string, string | undefined> } = {},
+) {
+  const alt = cfg.environment === "production" ? "development" : "production";
+  try {
+    return await toolsFetchEnv(cfg, cfg.environment, path, init);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (/404|not found/i.test(msg)) return await toolsFetchEnv(cfg, alt, path, init);
+    throw e;
+  }
+}
+
+
 const toolsAppSlug = (a: any) =>
   a?.app?.name_slug ?? a?.app?.slug ?? a?.app_slug ?? a?.appSlug ?? null;
 
+/** Pipedream actions need the connected account passed as their `app` prop. */
+async function toolsWithAuth(
+  cfg: ToolsCfg,
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  toolId: string,
+  appHint: string,
+  configured: Record<string, any>,
+): Promise<Record<string, any>> {
+  const props = { ...(configured ?? {}) };
+  let authProps: { name: string; app: string }[] = [];
+  try {
+    const meta = await toolsFetch(cfg, `/components/${encodeURIComponent(toolId)}`);
+    const list: any[] = meta?.data?.configurable_props ?? meta?.configurable_props ?? [];
+    authProps = list
+      .filter((p) => p?.type === "app" && p?.name)
+      .map((p) => ({ name: String(p.name), app: String(p.app ?? appHint) }));
+  } catch (_e) {
+    // fall back to slug-derived guess below
+  }
+  if (!authProps.length && appHint) {
+    const camel = appHint.replace(/_([a-z])/g, (_m, c) => c.toUpperCase());
+    authProps = [{ name: camel, app: appHint }];
+  }
+  for (const p of authProps) {
+    if (props[p.name]) continue;
+    const { data: acc } = await admin
+      .from("pipedream_accounts")
+      .select("account_id")
+      .eq("user_id", userId)
+      .eq("app_slug", p.app || appHint)
+      .maybeSingle();
+    const accountId = (acc as any)?.account_id;
+    if (accountId) props[p.name] = { authProvisionId: String(accountId) };
+  }
+  return props;
+}
+
+/** The external-user namespace the app's account was linked under. */
+async function toolsExternalUser(
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  fallback: string,
+  app: string,
+): Promise<string> {
+  if (!app) return fallback;
+  const { data } = await admin
+    .from("pipedream_accounts")
+    .select("external_user_id")
+    .eq("user_id", userId)
+    .eq("app_slug", app)
+    .maybeSingle();
+  const ext = (data as any)?.external_user_id;
+  return ext ? String(ext) : fallback;
+}
+
 async function handleTools(
+
   req: Request,
   admin: ReturnType<typeof createClient>,
   body: any,
@@ -824,39 +899,64 @@ async function handleTools(
     return json({ ok: false, error: "App tools are not configured yet" }, 400);
   }
 
+  // Same external-user convention as the account-linking function.
+  const externalUserId = `megsy_${userId}`;
+
   try {
     if (action === "list") {
       let rows: any[] = [];
-      try {
-        const data = await toolsFetch(cfg, "/accounts", {
-          query: { external_user_id: userId, limit: "100" },
-        });
-        const accounts: any[] = Array.isArray(data?.data) ? data.data : [];
-        rows = accounts
-          .map((a) => {
-            const slug = toolsAppSlug(a);
-            if (!slug || !a?.id) return null;
-            return {
-              user_id: userId,
-              app_slug: String(slug),
-              account_id: String(a.id),
-              account_name: String(a.name ?? a.external_id ?? slug),
-              healthy: a.healthy !== false,
-              metadata: { app_name: a?.app?.name ?? null },
-              updated_at: new Date().toISOString(),
-            };
-          })
-          .filter(Boolean) as any[];
-        if (rows.length) {
-          await admin.from("pipedream_accounts").upsert(rows, { onConflict: "user_id,app_slug" });
+      const accounts: any[] = [];
+      for (const ext of [externalUserId, userId]) {
+        try {
+          const data = await toolsFetch(cfg, "/accounts", {
+            query: { external_user_id: ext, limit: "100" },
+          });
+          if (Array.isArray(data?.data)) {
+            for (const a of data.data) accounts.push({ ...a, _ext: ext });
+          }
+        } catch (_e) {
+          // ignore: this external-user namespace may not exist
         }
-      } catch (_e) {
+      }
+      const seen = new Set<string>();
+      rows = accounts
+        .map((a) => {
+          const slug = toolsAppSlug(a);
+          if (!slug || !a?.id || seen.has(String(slug))) return null;
+          seen.add(String(slug));
+          return {
+            user_id: userId,
+            external_user_id: String(a._ext ?? externalUserId),
+            app_slug: String(slug),
+            account_id: String(a.id),
+            account_name: String(a.name ?? a.external_id ?? slug),
+            healthy: a.healthy !== false,
+            metadata: { app_name: a?.app?.name ?? null },
+            updated_at: new Date().toISOString(),
+          };
+        })
+        .filter(Boolean) as any[];
+      if (rows.length) {
+        await admin.from("pipedream_accounts").upsert(rows, { onConflict: "user_id,app_slug" });
+      }
+      // Merge in accounts linked through the connect flow (stored locally).
+      {
         const { data } = await admin
           .from("pipedream_accounts")
           .select("app_slug, account_id, account_name, healthy")
           .eq("user_id", userId);
-        rows = (data as any[]) ?? [];
+        for (const r of ((data as any[]) ?? [])) {
+          const slug = String(r.app_slug ?? "");
+          if (!slug || seen.has(slug)) continue;
+          seen.add(slug);
+          rows.push(r);
+        }
       }
+
+
+
+
+
 
       const { data: prefs } = await admin
         .from("pipedream_tool_settings")
@@ -900,13 +1000,24 @@ async function handleTools(
     if (action === "props") {
       const tool = String(body?.tool ?? "");
       if (!tool) return json({ ok: false, error: "Missing tool" }, 400);
+      const appHint = String(body?.app ?? tool.split("-")[0] ?? "").trim();
+      const configured = await toolsWithAuth(
+        cfg,
+        admin,
+        userId,
+        tool,
+        appHint,
+        body?.configured_props ?? {},
+      );
+      const extUser = await toolsExternalUser(admin, userId, externalUserId, appHint);
       const data = await toolsFetch(cfg, "/actions/configure", {
         method: "POST",
         body: {
-          external_user_id: userId,
+          external_user_id: extUser,
+
           id: tool,
           prop_name: body?.prop_name,
-          configured_props: body?.configured_props ?? {},
+          configured_props: configured,
           query: body?.query,
         },
       });
@@ -916,7 +1027,7 @@ async function handleTools(
     if (action === "run") {
       const tool = String(body?.tool ?? "");
       if (!tool) return json({ ok: false, error: "Missing tool" }, 400);
-      const app = String(body?.app ?? "").trim();
+      const app = String(body?.app ?? tool.split("-")[0] ?? "").trim();
       if (app) {
         const { data: setting } = await admin
           .from("pipedream_tool_settings")
@@ -928,18 +1039,49 @@ async function handleTools(
           return json({ ok: false, error: "This app is turned off for the assistant" }, 403);
         }
       }
+      const configured = await toolsWithAuth(
+        cfg,
+        admin,
+        userId,
+        tool,
+        app,
+        body?.configured_props ?? {},
+      );
+      const extUser = await toolsExternalUser(admin, userId, externalUserId, app);
       const data = await toolsFetch(cfg, "/actions/run", {
         method: "POST",
         body: {
-          external_user_id: userId,
+          external_user_id: extUser,
+
           id: tool,
-          configured_props: body?.configured_props ?? {},
+          configured_props: configured,
         },
       });
       return json({ ok: true, result: data?.ret ?? data, exports: data?.exports ?? null });
+
+    }
+
+    // Creates a link session in the same environment the tool runtime uses,
+    // so newly connected apps can actually run actions.
+    if (action === "connect") {
+      const data = await toolsFetch(cfg, "/tokens", {
+        method: "POST",
+        body: {
+          external_user_id: externalUserId,
+          allowed_origins: Array.isArray(body?.allowed_origins)
+            ? body.allowed_origins
+            : body?.redirect_origin
+              ? [String(body.redirect_origin)]
+              : undefined,
+        },
+      });
+      const link = data?.connect_link_url ?? data?.connectLinkUrl ?? null;
+      if (!link) return json({ ok: false, error: "Could not start the connection" }, 500);
+      return json({ ok: true, connect_link_url: String(link), token: data?.token ?? null });
     }
 
     if (action === "set_enabled") {
+
       const app = String(body?.app ?? "").trim();
       if (!app) return json({ ok: false, error: "Missing app" }, 400);
       const enabled = body?.enabled !== false;
