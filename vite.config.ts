@@ -521,6 +521,7 @@ export default defineConfig({
     manusAdminDevPlugin(),
     computerAgentDevPlugin(),
     longRunDevPlugin(),
+    mcpDevPlugin(),
     webSearchDevPlugin(),
     readUrlDevPlugin(),
     deepResearchDevPlugin(),
