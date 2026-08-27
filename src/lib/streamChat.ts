@@ -111,6 +111,9 @@ export async function streamChat({
     description: string;
     triggers?: string[];
     source?: string;
+    instructions?: string;
+    enabled_tools?: string[];
+    preferred_model?: string | null;
   }>;
   /** When true, run on the server as a background job that survives the user closing the tab. */
   background?: boolean;
