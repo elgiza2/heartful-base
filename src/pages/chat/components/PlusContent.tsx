@@ -136,7 +136,6 @@ const PlusMain = (p: PlusContentProps) => {
     { id: "camera", label: "Camera", Icon: Camera, onClick: closeThen(() => p.cameraInputRef.current?.click()) },
     { id: "photos", label: "Images", Icon: ImageIcon, onClick: closeThen(() => p.imageInputRef.current?.click()) },
     { id: "file", label: "Attach file", Icon: FileUp, onClick: closeThen(() => p.fileInputRef.current?.click()) },
-    { id: "link", label: "Add link", Icon: Link2, onClick: closeThen(() => p.onAddLink?.()) },
   ];
 
   type RowItem = { id: string; label: string; Icon: any; badge?: string; active?: boolean; toggle?: boolean; onClick: () => void };
@@ -168,7 +167,7 @@ const PlusMain = (p: PlusContentProps) => {
       whileTap={{ scale: item.toggle ? 1 : 0.98 }}
       transition={iosSpring}
       onClick={item.onClick}
-      className="plus-row w-full flex items-center gap-3.5 px-3 h-[52px] rounded-[12px] text-start border-0 bg-transparent"
+      className="plus-row w-full flex items-center gap-3.5 px-3 h-[58px] rounded-[12px] text-start border-0 bg-transparent"
     >
       <item.Icon
         className="shrink-0 w-[22px] h-[22px] transition-colors duration-200"
@@ -226,7 +225,7 @@ const PlusMain = (p: PlusContentProps) => {
     <motion.div key="main" {...fadeProps(-8)} className="flex flex-col">
       {/* MOBILE — bottom sheet */}
       <motion.div
-        className="md:hidden flex flex-col pb-4"
+        className="md:hidden flex flex-col pb-2"
         style={{ fontFamily: mobileFont }}
         dir="rtl"
         initial="hidden"
@@ -241,13 +240,13 @@ const PlusMain = (p: PlusContentProps) => {
         `}</style>
 
 
-        <div className="pt-1" />
+        
 
 
 
         {/* Media tiles strip */}
         <motion.div
-          className="flex gap-2 px-1.5 pb-4"
+          className="flex gap-2 px-1.5 pb-2"
           variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: iosSpring } }}
         >
           {tiles.map((t) => (
@@ -259,7 +258,7 @@ const PlusMain = (p: PlusContentProps) => {
               transition={iosSpring}
               onClick={t.onClick}
               className="kimi-tile flex flex-1 flex-col items-center justify-center gap-2 rounded-[14px]"
-              style={{ height: 76 }}
+              style={{ height: 88 }}
             >
               <t.Icon className="w-[22px] h-[22px]" strokeWidth={1.6} style={{ color: "hsl(var(--foreground) / 0.85)" }} />
               <span className="text-[12px] font-medium leading-none" style={{ color: "hsl(var(--foreground) / 0.75)" }}>
@@ -270,7 +269,7 @@ const PlusMain = (p: PlusContentProps) => {
         </motion.div>
 
         {/* Grouped rows with clean section titles */}
-        <div className="px-1.5 flex flex-col gap-3">
+        <div className="px-1.5 flex flex-col gap-2">
           {sections.map((section, si) => (
             <motion.div
               key={si}
