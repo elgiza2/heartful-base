@@ -18,6 +18,7 @@ import ClerkIntegrations from "./integrations/ClerkIntegrations";
 import { clerkEnabled } from "@/lib/clerk/config";
 import CustomMcpList from "./integrations/CustomMcpList";
 import AgentTools from "./integrations/AgentTools";
+import AppActionsPanel from "./integrations/AppActionsPanel";
 
 const DraggablePlusSheet = lazy(() =>
   import("@/pages/chat/components/DraggablePlusSheet").then((m) => ({
@@ -30,13 +31,12 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-type Tab = "apps" | "accounts" | "api" | "mcp";
+type Tab = "apps" | "accounts" | "custom";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "apps", label: "Apps" },
   ...(clerkEnabled ? [{ id: "accounts" as Tab, label: "Accounts" }] : []),
-  { id: "api", label: "Custom API" },
-  { id: "mcp", label: "Custom MCP" },
+  { id: "custom", label: "Custom" },
 ];
 
 
