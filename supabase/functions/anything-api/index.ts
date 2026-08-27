@@ -899,13 +899,6 @@ async function handleTools(
           await admin.from("pipedream_accounts").upsert(rows, { onConflict: "user_id,app_slug" });
         }
       } catch (_e) {
-        const { data } = await admin
-          .from("pipedream_accounts")
-          .select("app_slug, account_id, account_name, healthy")
-          .eq("user_id", userId);
-        rows = (data as any[]) ?? [];
-      }
-      } catch (_e) {
         rows = [];
       }
       if (!rows.length) {
@@ -915,6 +908,8 @@ async function handleTools(
           .eq("user_id", userId);
         rows = (data as any[]) ?? [];
       }
+
+
 
 
       const { data: prefs } = await admin
