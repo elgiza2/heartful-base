@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowUpLeft, Check, ChevronRight, Loader2, MoreHorizontal, SlidersHorizontal, Trash2 } from "lucide-react";
 import type { Integration } from "@/lib/integrationsData";
 import { IntegrationLogo } from "./IntegrationRow";
@@ -9,10 +9,11 @@ interface Props {
   busy: boolean;
   onBack: () => void;
   onToggle: () => void;
+  children?: ReactNode;
 }
 
 /** Level 2 — connector detail. Scrolling is owned by the sheet container. */
-export default function IntegrationDetail({ item, connected, busy, onBack, onToggle }: Props) {
+export default function IntegrationDetail({ item, connected, busy, onBack, onToggle, children }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -98,6 +99,8 @@ export default function IntegrationDetail({ item, connected, busy, onBack, onTog
           <Check className="h-[18px] w-[18px] shrink-0 text-foreground/70" />
         </div>
       )}
+
+      {children}
 
       <p className="mb-1 mt-6 px-2 text-[12.5px] text-foreground/40">Details</p>
       <div className="overflow-hidden rounded-[18px] bg-card">
