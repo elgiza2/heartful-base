@@ -107,6 +107,7 @@ export default function McpSettingsPage() {
     setLoading(false);
   }
   useEffect(() => {
+    notifyTurnContextChanged();
     load();
   }, []);
 
@@ -171,7 +172,8 @@ export default function McpSettingsPage() {
       setName("");
       setUrl("");
       setHeadersText("");
-      load();
+      notifyTurnContextChanged();
+    load();
     } catch (err) {
       toast.error(String((err as Error).message ?? err));
     } finally {
@@ -189,7 +191,8 @@ export default function McpSettingsPage() {
       } else {
         toast.error(res.error ?? "refresh failed");
       }
-      load();
+      notifyTurnContextChanged();
+    load();
     } catch (err) {
       toast.error(String((err as Error).message ?? err));
     } finally {
@@ -205,6 +208,7 @@ export default function McpSettingsPage() {
       return;
     }
     toast.success("Deleted");
+    notifyTurnContextChanged();
     load();
   }
 
@@ -217,6 +221,7 @@ export default function McpSettingsPage() {
       toast.error(error.message);
       return;
     }
+    notifyTurnContextChanged();
     load();
   }
 

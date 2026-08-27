@@ -76,6 +76,7 @@ const KnowledgePage = () => {
       if (error) throw error;
       setSheetOpen(false);
       await load();
+      notifyTurnContextChanged();
     } catch {
       toast.error("Could not save knowledge");
     } finally {
@@ -91,7 +92,9 @@ const KnowledgePage = () => {
       .eq("id", row.id);
     if (error) {
       setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, enabled: row.enabled } : r)));
+      return;
     }
+    notifyTurnContextChanged();
   };
 
   return (
