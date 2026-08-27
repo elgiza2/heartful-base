@@ -46,6 +46,29 @@ type ToolSpec = { name: string; method: "GET" | "POST"; path: string; params: Pa
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: CORS });
 
+/** Directory apps may target any public HTTPS host, never an internal one. */
+function isPublicHttpsHost(url: URL): boolean {
+  if (url.protocol !== "https:") return false;
+  const h = url.hostname.toLowerCase();
+  if (
+    h === "localhost" ||
+    h.endsWith(".local") ||
+    h.endsWith(".internal") ||
+    h === "metadata.google.internal"
+  ) {
+    return false;
+  }
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) {
+    const [a, b] = h.split(".").map(Number);
+    if (a === 10 || a === 127 || a === 0 || a === 169) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
+  }
+  if (h.includes(":")) return false; // raw IPv6 literals
+  return true;
+}
+
+
 export async function handleApiApp(_req: Request, admin: any, body: any): Promise<Response> {
   try {
     const token = String(body?.token ?? "");
