@@ -939,13 +939,22 @@ async function handleTools(
     if (action === "props") {
       const tool = String(body?.tool ?? "");
       if (!tool) return json({ ok: false, error: "Missing tool" }, 400);
+      const appHint = String(body?.app ?? tool.split("-")[0] ?? "").trim();
+      const configured = await toolsWithAuth(
+        cfg,
+        admin,
+        userId,
+        tool,
+        appHint,
+        body?.configured_props ?? {},
+      );
       const data = await toolsFetch(cfg, "/actions/configure", {
         method: "POST",
         body: {
           external_user_id: userId,
           id: tool,
           prop_name: body?.prop_name,
-          configured_props: body?.configured_props ?? {},
+          configured_props: configured,
           query: body?.query,
         },
       });
@@ -955,7 +964,7 @@ async function handleTools(
     if (action === "run") {
       const tool = String(body?.tool ?? "");
       if (!tool) return json({ ok: false, error: "Missing tool" }, 400);
-      const app = String(body?.app ?? "").trim();
+      const app = String(body?.app ?? tool.split("-")[0] ?? "").trim();
       if (app) {
         const { data: setting } = await admin
           .from("pipedream_tool_settings")
@@ -967,15 +976,24 @@ async function handleTools(
           return json({ ok: false, error: "This app is turned off for the assistant" }, 403);
         }
       }
+      const configured = await toolsWithAuth(
+        cfg,
+        admin,
+        userId,
+        tool,
+        app,
+        body?.configured_props ?? {},
+      );
       const data = await toolsFetch(cfg, "/actions/run", {
         method: "POST",
         body: {
           external_user_id: userId,
           id: tool,
-          configured_props: body?.configured_props ?? {},
+          configured_props: configured,
         },
       });
       return json({ ok: true, result: data?.ret ?? data, exports: data?.exports ?? null });
+
     }
 
     if (action === "set_enabled") {
