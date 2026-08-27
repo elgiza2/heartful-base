@@ -243,6 +243,54 @@ function longRunDevPlugin(): Plugin {
   };
 }
 
+/** Dev-server equivalent of api/mcp.ts (connected tool servers). */
+function mcpDevPlugin(): Plugin {
+  return {
+    name: "mcp-dev",
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use("/api/mcp", (req, res) => {
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Cache-Control", "no-store");
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Headers", "authorization, content-type");
+        if (req.method === "OPTIONS") {
+          res.statusCode = 204;
+          res.end();
+          return;
+        }
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.end(JSON.stringify({ ok: false, error: "Method not allowed" }));
+          return;
+        }
+        const chunks: Buffer[] = [];
+        req.on("data", (c) => chunks.push(Buffer.from(c)));
+        req.on("end", async () => {
+          let payload: unknown = null;
+          try {
+            payload = chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : null;
+          } catch {
+            payload = null;
+          }
+          try {
+            const { handleMcpGateway } = await import("./src/lib/mcp/gatewayCore");
+            const result = await handleMcpGateway(payload as never);
+            res.statusCode = result.status;
+            res.end(JSON.stringify(result.body));
+          } catch (error) {
+            res.statusCode = 500;
+            res.end(
+              JSON.stringify({ ok: false, error: error instanceof Error ? error.message : "mcp_failed" }),
+            );
+          }
+        });
+      });
+    },
+  };
+}
+
+
+
 /** Dev-server equivalent of api/web-search.ts (Deep Research live sources). */
 function webSearchDevPlugin(): Plugin {
   return {
@@ -473,6 +521,7 @@ export default defineConfig({
     manusAdminDevPlugin(),
     computerAgentDevPlugin(),
     longRunDevPlugin(),
+    mcpDevPlugin(),
     webSearchDevPlugin(),
     readUrlDevPlugin(),
     deepResearchDevPlugin(),
