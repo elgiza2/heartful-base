@@ -12,7 +12,15 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export type KnowledgeEntry = { name: string; use_when: string; content: string };
-export type McpServerInfo = { id: string; name: string; transport: string; tools: string[] };
+export type McpToolInfo = { name: string; description: string; inputSchema?: unknown };
+export type McpServerInfo = {
+  id: string;
+  name: string;
+  transport: string;
+  protocolVersion?: string;
+  tools: string[];
+  toolDetails: McpToolInfo[];
+};
 export type ConnectedAppInfo = { slug: string; kind: string };
 
 export type TurnContext = {
@@ -73,7 +81,7 @@ export async function fetchTurnContext(): Promise<TurnContext> {
       .limit(30),
     supabase
       .from("mcp_connections")
-      .select("id, name, transport, tool_names, enabled")
+      .select("id, name, transport, tool_names, tools, protocol_version, enabled")
       .eq("user_id", userId)
       .eq("enabled", true)
       .limit(20),
@@ -108,12 +116,29 @@ export async function fetchTurnContext(): Promise<TurnContext> {
     if (budget <= 0) break;
   }
 
-  const mcpServers: McpServerInfo[] = ((mcpRes.data as any[]) || []).map((r) => ({
-    id: String(r.id),
-    name: String(r.name || "Server"),
-    transport: String(r.transport || "http"),
-    tools: Array.isArray(r.tool_names) ? r.tool_names.map(String).slice(0, 40) : [],
-  }));
+  const mcpServers: McpServerInfo[] = ((mcpRes.data as any[]) || []).map((r) => {
+    const detailed: McpToolInfo[] = (Array.isArray(r.tools) ? r.tools : [])
+      .slice(0, 40)
+      .map((t: any) => ({
+        name: String(t?.name ?? ""),
+        description: String(t?.description ?? "").slice(0, 300),
+        inputSchema: t?.inputSchema ?? t?.input_schema,
+      }))
+      .filter((t: McpToolInfo) => t.name);
+    const names = detailed.length
+      ? detailed.map((t) => t.name)
+      : Array.isArray(r.tool_names)
+        ? r.tool_names.map(String).slice(0, 40)
+        : [];
+    return {
+      id: String(r.id),
+      name: String(r.name || "Server"),
+      transport: String(r.transport || "http"),
+      protocolVersion: r.protocol_version ? String(r.protocol_version) : undefined,
+      tools: names,
+      toolDetails: detailed,
+    };
+  });
 
   const connectedApps: ConnectedAppInfo[] = ((appsRes.data as any[]) || [])
     .filter((r) => (r.status || "active") !== "revoked")
@@ -155,7 +180,15 @@ export function buildTurnContextBrief(ctx: TurnContext): string {
 
   if (ctx.mcpServers.length) {
     const lines = ctx.mcpServers
-      .map((s) => `- ${s.name}${s.tools.length ? `: ${s.tools.slice(0, 12).join(", ")}` : ""}`)
+      .map((s) => {
+        const detail = s.toolDetails.length
+          ? s.toolDetails
+              .slice(0, 12)
+              .map((t) => `    • ${t.name}${t.description ? ` — ${t.description}` : ""}`)
+              .join("\n")
+          : s.tools.slice(0, 12).map((t) => `    • ${t}`).join("\n");
+        return `- ${s.name}${detail ? `\n${detail}` : ""}`;
+      })
       .join("\n");
     parts.push(
       [

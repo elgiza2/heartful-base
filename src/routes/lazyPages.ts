@@ -19,6 +19,7 @@ export const ResearchPreviewPage = lazy(() => import("@/pages/chat/ResearchPrevi
 
 /* ── Auth (single animated hub) ───────────────────────────────── */
 export const AuthPage = lazy(() => import("@/pages/auth/AuthPage"));
+export const AppleCallbackPage = lazy(() => import("@/pages/auth/AppleCallbackPage"));
 export const OAuthCallbackPage = lazy(() => import("@/pages/auth/OAuthCallbackPage"));
 export const OAuthAuthorizePage = lazy(() => import("@/pages/auth/OAuthAuthorizePage"));
 export const ResetPasswordPage = lazy(() => import("@/pages/auth/ResetPasswordPage"));

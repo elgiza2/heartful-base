@@ -14,6 +14,8 @@ import IntegrationRow from "./integrations/IntegrationRow";
 import IntegrationDetail from "./integrations/IntegrationDetail";
 import EmptyConnectors from "./integrations/EmptyConnectors";
 import CustomApiKeys from "./integrations/CustomApiKeys";
+import ClerkIntegrations from "./integrations/ClerkIntegrations";
+import { clerkEnabled } from "@/lib/clerk/config";
 import CustomMcpList from "./integrations/CustomMcpList";
 
 const DraggablePlusSheet = lazy(() =>
@@ -27,10 +29,11 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-type Tab = "apps" | "api" | "mcp";
+type Tab = "apps" | "accounts" | "api" | "mcp";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "apps", label: "Apps" },
+  ...(clerkEnabled ? [{ id: "accounts" as Tab, label: "Accounts" }] : []),
   { id: "api", label: "Custom API" },
   { id: "mcp", label: "Custom MCP" },
 ];
@@ -214,6 +217,8 @@ export default function IntegrationsSheet({ open, onOpenChange }: Props) {
                       <div className="mt-2 flex-1">
                         {tab === "mcp" ? (
                           <CustomMcpList onNavigate={() => onOpenChange(false)} />
+                        ) : tab === "accounts" ? (
+                          <ClerkIntegrations />
                         ) : tab === "api" ? (
                           <CustomApiKeys />
                         ) : list.length === 0 ? (

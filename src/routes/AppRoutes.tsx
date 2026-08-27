@@ -13,6 +13,7 @@ import {
   // auth hub
   AuthPage,
   OAuthCallbackPage,
+  AppleCallbackPage,
   OAuthAuthorizePage,
   ResetPasswordPage,
   ChangeEmailPage,
@@ -83,6 +84,7 @@ export const AppRoutes = ({ currentUserId }: { currentUserId: string | null }) =
       <Route path="/signin" element={<AuthPage />} />
       <Route path="/signup" element={<AuthPage />} />
       <Route path="/register" element={<AuthPage />} />
+      <Route path="/auth/apple-callback" element={<AppleCallbackPage />} />
       <Route path="/auth/callback/:provider" element={<OAuthCallbackPage />} />
       <Route path="/auth/mfa" element={<MfaChallengePage />} />
       <Route path="/oauth/authorize" element={<OAuthAuthorizePage />} />

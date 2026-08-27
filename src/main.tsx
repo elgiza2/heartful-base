@@ -12,6 +12,7 @@ const loadMotionFeatures = () => import("framer-motion").then((m) => m.domMax);
 // usually already in memory — no route-level loading state is ever painted.
 void import("@/pages/chat/ChatPage");
 import App from "./App.tsx";
+import ClerkGate from "@/components/auth/ClerkGate";
 import "./index.css";
 import "./styles/claude-chat.css";
 import "./styles/pwa-safe-area.css";
@@ -231,7 +232,9 @@ if (savedBubble) document.documentElement.style.setProperty("--user-bubble", sav
 createRoot(document.getElementById("root")!).render(
   <HelmetProvider>
     <LazyMotion features={loadMotionFeatures} strict={false}>
-      <App />
+      <ClerkGate>
+        <App />
+      </ClerkGate>
     </LazyMotion>
   </HelmetProvider>,
 );
