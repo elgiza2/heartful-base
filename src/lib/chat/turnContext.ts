@@ -10,6 +10,7 @@
  * No provider or model names are ever exposed in user-facing strings.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { API_APPS } from "@/lib/apiApps/catalog";
 
 export type KnowledgeEntry = { name: string; use_when: string; content: string };
 export type McpToolInfo = { name: string; description: string; inputSchema?: unknown };
@@ -22,11 +23,13 @@ export type McpServerInfo = {
   toolDetails: McpToolInfo[];
 };
 export type ConnectedAppInfo = { slug: string; kind: string };
+export type ApiAppInfo = { id: string; name: string; tools: { name: string; description: string }[] };
 
 export type TurnContext = {
   knowledge: KnowledgeEntry[];
   mcpServers: McpServerInfo[];
   connectedApps: ConnectedAppInfo[];
+  apiApps: ApiAppInfo[];
   browser: { keepSignedIn: boolean; allowDownloads: boolean };
 };
 
@@ -34,6 +37,7 @@ const EMPTY: TurnContext = {
   knowledge: [],
   mcpServers: [],
   connectedApps: [],
+  apiApps: [],
   browser: { keepSignedIn: false, allowDownloads: true },
 };
 
@@ -71,7 +75,7 @@ export async function fetchTurnContext(): Promise<TurnContext> {
 
   if (cache && cache.userId === userId && Date.now() - cache.at < CACHE_TTL) return cache.value;
 
-  const [knowledgeRes, mcpRes, appsRes, integrationsRes, browserRes, toolAppsRes, toolPrefsRes] = await Promise.all([
+  const [knowledgeRes, mcpRes, appsRes, integrationsRes, browserRes, toolAppsRes, toolPrefsRes, apiAppsRes] = await Promise.all([
     supabase
       .from("user_knowledge")
       .select("name, use_when, content, enabled")
@@ -110,7 +114,22 @@ export async function fetchTurnContext(): Promise<TurnContext> {
       .select("app_slug, enabled")
       .eq("user_id", userId)
       .limit(60),
+    supabase
+      .from("user_api_apps")
+      .select("app_id, enabled")
+      .eq("user_id", userId)
+      .eq("enabled", true)
+      .limit(60),
   ]);
+
+  const apiApps: ApiAppInfo[] = (((apiAppsRes as any)?.data as any[]) || [])
+    .map((r) => API_APPS.find((a) => a.id === String(r.app_id)))
+    .filter(Boolean)
+    .map((a: any) => ({
+      id: a.id,
+      name: a.name,
+      tools: a.tools.map((t: any) => ({ name: t.name, description: t.description })),
+    }));
 
   let budget = KNOWLEDGE_CHAR_BUDGET;
   const knowledge: KnowledgeEntry[] = [];
@@ -173,6 +192,7 @@ export async function fetchTurnContext(): Promise<TurnContext> {
     knowledge,
     mcpServers,
     connectedApps,
+    apiApps,
     browser: {
       keepSignedIn: Boolean(browserRow?.keep_signed_in),
       allowDownloads: browserRow?.allow_downloads !== false,
@@ -236,6 +256,24 @@ export function buildTurnContextBrief(ctx: TurnContext): string {
     }
   }
 
+  if (ctx.apiApps.length) {
+    const lines = ctx.apiApps
+      .map(
+        (a) =>
+          `- ${a.name}\n${a.tools
+            .slice(0, 8)
+            .map((t) => `    • ${t.name}${t.description ? ` — ${t.description}` : ""}`)
+            .join("\n")}`,
+      )
+      .join("\n");
+    parts.push(
+      [
+        "[READY API APPS — the user added their own key for these services, so their tools are live this turn. Use them for matching requests instead of refusing.]",
+        lines,
+      ].join("\n"),
+    );
+  }
+
   parts.push(
     `[BROWSER SESSION — ${
       ctx.browser.keepSignedIn
@@ -253,6 +291,7 @@ export function turnContextPayload(ctx: TurnContext) {
     userKnowledge: ctx.knowledge,
     mcpServers: ctx.mcpServers,
     connectedApps: ctx.connectedApps,
+    apiApps: ctx.apiApps,
     browserSettings: ctx.browser,
   };
 }

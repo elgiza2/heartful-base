@@ -11951,6 +11951,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_api_apps: {
+        Row: {
+          app_id: string
+          created_at: string
+          enabled: boolean
+          id: string
+          key_hint: string
+          key_value: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          app_id: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          key_hint?: string
+          key_value: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          app_id?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          key_hint?: string
+          key_value?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_assets: {
         Row: {
           created_at: string

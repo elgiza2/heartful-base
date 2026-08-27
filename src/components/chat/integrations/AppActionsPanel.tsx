@@ -1,10 +1,12 @@
-/** @doc Actions of one connected app, shown inside the connector detail view.
- *  Tapping an action drops a ready prompt into the composer.
+/** @doc Actions of one connected app, shown inside the connector detail view
+ *  using the shared clean tools list. Tapping an action drops a ready prompt
+ *  into the composer.
  */
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { listAppTools, type AppTool } from "@/lib/pipedream/client";
+import ToolsList from "./ToolsList";
 
 export default function AppActionsPanel({
   slug,
@@ -46,33 +48,17 @@ export default function AppActionsPanel({
   if (!tools || tools.length === 0) return null;
 
   return (
-    <div className="mt-6">
-      <p className="mb-1 px-2 text-[12.5px] text-foreground/40">{`Actions · ${tools.length}`}</p>
-      <div>
-        {tools.slice(0, 60).map((tool) => (
-          <button
-            key={tool.key}
-            type="button"
-            onClick={() => {
-              window.dispatchEvent(
-                new CustomEvent("megsy:composer-insert", {
-                  detail: { text: `Use ${appName} → ${tool.name}: ` },
-                }),
-              );
-              onUse?.();
-            }}
-            className="block w-full rounded-[12px] px-2 py-2 text-start active:bg-foreground/[0.05]"
-            style={{ border: 0, background: "transparent" }}
-          >
-            <span className="block truncate text-[13.5px] text-foreground/85">{tool.name}</span>
-            {tool.description && (
-              <span className="mt-0.5 block truncate text-[11.5px] text-foreground/40">
-                {tool.description}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-    </div>
+    <ToolsList
+      title="Tools"
+      tools={tools.map((t) => ({ key: t.key, name: t.name, description: t.description }))}
+      onPick={(tool) => {
+        window.dispatchEvent(
+          new CustomEvent("megsy:composer-insert", {
+            detail: { text: `Use ${appName} → ${tool.name}: ` },
+          }),
+        );
+        onUse?.();
+      }}
+    />
   );
 }
