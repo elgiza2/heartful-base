@@ -557,6 +557,11 @@ export async function runChatStreamTurn(opts: RunChatStreamTurnOptions): Promise
         description: s.description,
         triggers: s.triggers || [],
         source: s.source,
+        // The backend needs the actual playbook + allowed tools, otherwise a
+        // matched skill can be named but never executed.
+        instructions: (s.instructions || s.body || "").slice(0, 4000),
+        enabled_tools: s.enabled_tools || [],
+        preferred_model: s.preferred_model || null,
       })),
     onDelta: updateAssistant,
     onReasoning: (delta: string) => {
