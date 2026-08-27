@@ -99,9 +99,11 @@ export async function handleApiApp(_req: Request, admin: any, body: any): Promis
     if (/\{[^}]+\}/.test(path)) return json({ ok: false, error: "Missing path value" }, 400);
 
     const url = new URL(spec.baseUrl.replace(/\/$/, "") + path);
-    if (!ALLOWED_HOSTS.has(url.hostname)) {
+    const trusted = ALLOWED_HOSTS.has(url.hostname);
+    if (!trusted && !isPublicHttpsHost(url)) {
       return json({ ok: false, error: "This service is not allowed" }, 400);
     }
+
 
     for (const p of tool.params.filter((x) => x.in === "query")) {
       const v = params[p.name];
